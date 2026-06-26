@@ -52,6 +52,7 @@ interface MarkdownEditorProps {
   editorRef: React.MutableRefObject<Monaco.editor.IStandaloneCodeEditor | null>;
   isPreviewMode: boolean;
   onTogglePreview: () => void;
+  fontFamily: string;
 }
 
 /**
@@ -60,7 +61,7 @@ interface MarkdownEditorProps {
  * EditorToolbar 由父组件 FolderWorkspace 渲染在 workspace zoom 容器外部，
  * 因此工具栏始终保持 100% 比例，不受 Ctrl+滚轮缩放影响。
  */
-function MarkdownEditor({ source, onSourceChange, editorRef, isPreviewMode, onTogglePreview }: MarkdownEditorProps) {
+function MarkdownEditor({ source, onSourceChange, editorRef, isPreviewMode, onTogglePreview, fontFamily }: MarkdownEditorProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const themeObserverRef = useRef<MutationObserver | null>(null);
@@ -78,6 +79,8 @@ function MarkdownEditor({ source, onSourceChange, editorRef, isPreviewMode, onTo
 
   // 判断当前主题：亮色模式由 .light 类在 document.documentElement 上控制
   const isDark = !document.documentElement.classList.contains("light");
+
+  const fontStack = `"${fontFamily}", monospace`;
 
   // ── Monaco 主题管理 ──────────────────────────────────────────────────
   // handleBeforeMount: 在 Monaco 编辑器初始化前应用主题
@@ -110,6 +113,17 @@ function MarkdownEditor({ source, onSourceChange, editorRef, isPreviewMode, onTo
   const handleEditorMount: OnMount = useCallback(
     (editor) => {
       editorRef.current = editor;
+      // Force font via updateOptions (post-mount, most reliable)
+      editor.updateOptions({ fontFamily: fontStack });
+      // Also inject a style element inside the editor DOM as fallback
+      const style = document.createElement("style");
+      style.setAttribute("data-gull-mfont", "");
+      style.textContent =
+        `.monaco-editor .view-lines,` +
+        `.monaco-editor .view-lines * {` +
+        `  font-family: ${fontStack} !important;` +
+        `}`;
+      editor.getDomNode()?.querySelector(".monaco-editor")?.appendChild(style);
       requestAnimationFrame(() => {
         syncEditorToPreview();
       });
@@ -129,7 +143,7 @@ function MarkdownEditor({ source, onSourceChange, editorRef, isPreviewMode, onTo
       editor.onDidChangeCursorPosition(updateSb);
       editor.onDidChangeCursorSelection(updateSb);
     },
-    [editorRef, syncEditorToPreview],
+    [editorRef, syncEditorToPreview, fontStack],
   );
 
   // ── Marked config ─────────────────────────────────────────────────────
@@ -171,8 +185,7 @@ function MarkdownEditor({ source, onSourceChange, editorRef, isPreviewMode, onTo
             beforeMount={handleBeforeMount}
             options={{
               fontSize: 13,
-              fontFamily:
-                "'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+              fontFamily: fontStack,
               lineHeight: 22,
               padding: { top: 8, bottom: 8 },
               minimap: { enabled: false },
