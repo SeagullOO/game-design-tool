@@ -44,6 +44,7 @@ interface SidebarProps {
   onRename: (id: number, newName: string) => void;
   onDelete: (id: number) => void;
   onCopy: (id: number) => void;
+  onDeselectAll?: () => void;
 }
 
 function Sidebar({
@@ -58,6 +59,7 @@ function Sidebar({
   onRename,
   onDelete,
   onCopy,
+  onDeselectAll,
 }: SidebarProps) {
   const lang = getLang();
   const navigate = useNavigate();
@@ -179,22 +181,15 @@ function Sidebar({
     </>
   );
 
-  const footer = (
-    <div className="px-3 py-2">
-      <button
-        onClick={() => navigate("/templates")}
-        className="fe-workspace-btn w-full text-[11px] font-medium text-left px-1 py-0.5 rounded"
-        style={{ color: "var(--text-secondary)", background: "transparent", border: "none", cursor: "pointer" }}
-      >
-        {t("manageTemplates", lang)}
-      </button>
-    </div>
-  );
-
   return (
-    <Panel header={header} footer={footer}>
-      {/* Folder list */}
-      <div className="px-2 py-1 space-y-0.5">
+    <Panel header={header}>
+      {/* Folder list wrapper: h-full ensures clicks on empty space below list are captured */}
+      <div className="h-full"
+        onClick={(e) => {
+          const target = e.target as HTMLElement;
+          if (!target.closest('.side-item')) onDeselectAll?.();
+        }}>
+        <div className="px-2 py-1 space-y-0.5">
         {filteredFolders.length === 0 ? (
           <div className="text-center py-12 px-4">
             {searchQuery ? (
@@ -234,7 +229,6 @@ function Sidebar({
                 style={{
                   borderRadius: "var(--radius)",
                   color: selectedId === folder.id ? "var(--accent-text)" : "var(--text-secondary)",
-                  background: selectedId === folder.id ? "var(--bg-selected)" : "transparent",
                 }}
               >
                 {selectedId === folder.id && (
@@ -268,7 +262,7 @@ function Sidebar({
                     <div className="flex items-center gap-2.5">
                       <span className="font-medium text-[13px] truncate flex-1">{folder.name}</span>
                       <span
-                        className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="text-[10px]"
                         style={{ color: "var(--text-tertiary)" }}
                       >
                         {folder.files.length}{t("filesCount", lang)}
@@ -317,6 +311,7 @@ function Sidebar({
         </div>,
         document.body
       )}
+      </div>
     </Panel>
   );
 }

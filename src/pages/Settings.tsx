@@ -15,7 +15,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import { t, getLang, setLang } from "../i18n";
 import type { Lang } from "../i18n";
-import { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, ZOOM_DEFAULT, KEYBINDINGS } from "../config";
+import { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, ZOOM_DEFAULT } from "../config";
+import PanelLayout from "../components/PanelLayout";
 import { SettingsGearIcon, MonitorIcon, StorageCubeIcon, InfoCircleIcon } from "../components/icons";
 
 const STORAGE_KEY = "gull_settings";
@@ -178,12 +179,6 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
     api?.installUpdate?.();
   }, [api]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === KEYBINDINGS.closePanel.key) onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const persistAndApply = useCallback((next: SettingsData) => {
     setSettings(next);
     saveSettings(next);
@@ -207,63 +202,27 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
     { key: "stgAbout",       icon: <InfoCircleIcon /> },
   ], []);
 
+  const sidebar = (
+    <aside className="stg-sidebar" style={{ height: "100%", borderRadius: 0 }}>
+      <div className="stg-sidebar-header">{t("stgSettings", lang)}</div>
+      <nav className="stg-sidebar-nav">
+        {navItems.map((item) => (
+          <button
+            key={item.key}
+            className={`stg-nav-btn${activeNav === item.key ? " active" : ""}`}
+            onClick={() => setActiveNav(item.key)}
+          >
+            {item.icon}
+            {t(item.key, lang)}
+          </button>
+        ))}
+      </nav>
+      <div className="stg-sidebar-footer">v1.0.0</div>
+    </aside>
+  );
+
   return (
-    <div
-      className="settings-backdrop"
-      style={{
-        position: "fixed", inset: 0, zIndex: 1000,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "rgba(0, 0, 0, 0.65)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          display: "flex", width: "80vw", height: "90vh",
-          maxWidth: 1200, minWidth: 560, minHeight: 400,
-          borderRadius: "var(--radius-m)", overflow: "hidden",
-          background: "var(--stg-bg)",
-          border: "1px solid var(--border-medium)",
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3)",
-          position: "relative",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          style={{
-            position: "absolute", top: 10, right: 10,
-            width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",
-            border: "none", borderRadius: "var(--radius-s)",
-            background: "transparent", color: "var(--stg-muted)", cursor: "pointer",
-            zIndex: 10, fontSize: 16, lineHeight: 1,
-          }}
-          title={t("close", lang)}
-        >
-          ✕
-        </button>
-
-        {/* Sidebar */}
-        <aside className="stg-sidebar" style={{ height: "100%", borderRadius: 0 }}>
-          <div className="stg-sidebar-header">{t("stgSettings", lang)}</div>
-          <nav className="stg-sidebar-nav">
-            {navItems.map((item) => (
-              <button
-                key={item.key}
-                className={`stg-nav-btn${activeNav === item.key ? " active" : ""}`}
-                onClick={() => setActiveNav(item.key)}
-              >
-                {item.icon}
-                {t(item.key, lang)}
-              </button>
-            ))}
-          </nav>
-          <div className="stg-sidebar-footer">v1.0.0</div>
-        </aside>
-
-        {/* Main Content */}
-        <main className="stg-main" style={{ overflow: "auto", height: "100%" }}>
+    <PanelLayout onClose={onClose} sidebar={sidebar}>
           {activeNav === "stgGeneral" && (
             <>
               <div>
@@ -445,9 +404,7 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
               </div>
             </>
           )}
-        </main>
-      </div>
-    </div>
+    </PanelLayout>
   );
 });
 

@@ -17,10 +17,8 @@ interface IconProps {
 }
 
 const defaultProps = {
-  width: 16,
-  height: 16,
-  fill: "none",
-  stroke: "currentColor",
+  fill: "none" as const,
+  stroke: "currentColor" as const,
   strokeWidth: 2,
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
@@ -113,7 +111,7 @@ export function CloseIcon({ className, style, width = 16, height = 16 }: IconPro
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 文件类型图标
+// 文件类型图标（树节点用小尺寸 / 活动栏操作用大尺寸）
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function MdFileIcon({ className, style, width = 12, height = 12 }: IconProps) {
@@ -121,8 +119,7 @@ export function MdFileIcon({ className, style, width = 12, height = 12 }: IconPr
     <svg className={className} style={style} width={width} height={height} viewBox="0 0 24 24" {...defaultProps} {...{ strokeLinecap: undefined, strokeLinejoin: undefined }}>
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
+      <path d="M9 17L9 12L12 15L15 12L15 17" />
     </svg>
   );
 }
@@ -138,13 +135,22 @@ export function ExcelFileIcon({ className, style, width = 12, height = 12 }: Ico
   );
 }
 
+export function DocxFileIcon({ className, style, width = 12, height = 12 }: IconProps) {
+  return (
+    <svg className={className} style={style} width={width} height={height} viewBox="0 0 24 24" {...defaultProps} {...{ strokeLinecap: undefined, strokeLinejoin: undefined }}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <path d="M9 12v5M9 12h3a2.5 2.5 0 0 1 0 5h-3" />
+    </svg>
+  );
+}
+
 export function NewMdIcon({ className, style, width = 16, height = 16 }: IconProps) {
   return (
     <svg className={className} style={style} width={width} height={height} viewBox="0 0 24 24" {...defaultProps} {...{ strokeLinecap: undefined, strokeLinejoin: undefined }}>
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
-      <line x1="12" y1="11" x2="12" y2="17" />
-      <line x1="9" y1="14" x2="15" y2="14" />
+      <path d="M9 17L9 12L12 15L15 12L15 17" />
     </svg>
   );
 }
@@ -158,6 +164,16 @@ export function NewExcelIcon({ className, style, width = 16, height = 16 }: Icon
       <line x1="9" y1="3" x2="9" y2="21" />
       <line x1="12" y1="9" x2="12" y2="15" />
       <line x1="15" y1="3" x2="15" y2="21" />
+    </svg>
+  );
+}
+
+export function NewDocxIcon({ className, style, width = 16, height = 16 }: IconProps) {
+  return (
+    <svg className={className} style={style} width={width} height={height} viewBox="0 0 24 24" {...defaultProps} {...{ strokeLinecap: undefined, strokeLinejoin: undefined }}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <path d="M9 12v5M9 12h3a2.5 2.5 0 0 1 0 5h-3" />
     </svg>
   );
 }
@@ -244,7 +260,7 @@ export function MonitorIcon({ className, style, width = 16, height = 16 }: IconP
 
 export function SettingsGearIcon({ className, style }: IconProps) {
   return (
-    <svg className={className} style={style} viewBox="0 0 16 16" {...defaultProps} {...{ strokeWidth: 1.4 }}>
+    <svg className={className} style={style} width={16} height={16} viewBox="0 0 16 16" {...defaultProps} {...{ strokeWidth: 1.4 }}>
       <circle cx="8" cy="8" r="2.8" />
       <path d="M8 1.2v1.8M8 13v1.8M13.2 8h-1.8M4.6 8H2.8M11.7 4.3l-1.3 1.3M5.6 10.4l-1.3 1.3M11.7 11.7l-1.3-1.3M5.6 5.6L4.3 4.3" />
     </svg>
@@ -253,7 +269,7 @@ export function SettingsGearIcon({ className, style }: IconProps) {
 
 export function StorageCubeIcon({ className, style }: IconProps) {
   return (
-    <svg className={className} style={style} viewBox="0 0 16 16" {...defaultProps} {...{ strokeWidth: 1.4 }}>
+    <svg className={className} style={style} width={16} height={16} viewBox="0 0 16 16" {...defaultProps} {...{ strokeWidth: 1.4 }}>
       <path d="M2 5l6-3 6 3v6l-6 3-6-3v-6z" />
       <path d="M2 5l6 3v6" />
       <path d="M8 8l6-3" />
@@ -274,7 +290,7 @@ export function RefreshIcon({ className, style, width = 16, height = 16 }: IconP
 
 export function InfoCircleIcon({ className, style }: IconProps) {
   return (
-    <svg className={className} style={style} viewBox="0 0 16 16" {...defaultProps} {...{ strokeWidth: 1.4 }}>
+    <svg className={className} style={style} width={16} height={16} viewBox="0 0 16 16" {...defaultProps} {...{ strokeWidth: 1.4 }}>
       <circle cx="8" cy="8" r="6.5" />
       <path d="M8 5v0M8 8v3" />
     </svg>

@@ -18,9 +18,8 @@
  *             ├── GlobalSearchModal
  *             ├── Routes
  *             │   ├── "/"            → FolderWorkspace
- *             │   ├── "/folder/:id"  → FolderWorkspace
- *             │   └── "/templates"   → TemplateManager
- *             └── Settings（当 pathname === "/settings" 时渲染）
+ *             │   └── "/folder/:id"  → FolderWorkspace
+ *             └── Settings / TemplateManager（根级别条件渲染，同一套父逻辑）
  * ```
  *
  * 缩放系统初始化流程：
@@ -120,6 +119,7 @@ function App() {
   /** 当前界面语言，切换时通过 key 强制重渲染整个应用 */
   const [lang, setLangState] = useState(getLang);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [statusState, setStatusState] = useState<{ fileType?: string; line: number; column: number; selectionCount: number; cellRange?: string }>({ line: 1, column: 1, selectionCount: 0 });
 
   // ─── 初始化主题和缩放 ────────────────────────────────────────────────
@@ -175,7 +175,12 @@ function App() {
       if (el) (el.style as any).zoom = z !== ZOOM_REFERENCE ? String(z / ZOOM_REFERENCE) : "";
     };
     (window as any).__applyLang = (l: string) => { setLang(l); setLangState(l as "zh" | "en"); };
-    return () => { (window as any).__applyZoom = undefined; (window as any).__applyLang = undefined; };
+    (window as any).__openTemplateManager = () => setTemplateManagerOpen(true);
+    return () => {
+      (window as any).__applyZoom = undefined;
+      (window as any).__applyLang = undefined;
+      (window as any).__openTemplateManager = undefined;
+    };
   }, []);
 
   // 状态栏更新回调：workspace 直接调用
@@ -196,6 +201,8 @@ function App() {
         settingsOpen={settingsOpen}
         onOpenSettings={handleOpenSettings}
         onCloseSettings={handleCloseSettings}
+        templateManagerOpen={templateManagerOpen}
+        onCloseTemplateManager={() => setTemplateManagerOpen(false)}
       />
     </BrowserRouter>
   );
@@ -212,6 +219,7 @@ function AppContent({
   globalSearchOpen, setGlobalSearchOpen,
   zoom, contentZoom, setZoom, setContentZoom,
   settingsOpen, onOpenSettings, onCloseSettings,
+  templateManagerOpen, onCloseTemplateManager,
 }: {
   sidebarOpen: boolean;
   setSidebarOpen: (v: boolean) => void;
@@ -224,6 +232,8 @@ function AppContent({
   settingsOpen: boolean;
   onOpenSettings: () => void;
   onCloseSettings: () => void;
+  templateManagerOpen: boolean;
+  onCloseTemplateManager: () => void;
 }) {
   return (
     <ErrorBoundary>
@@ -240,7 +250,7 @@ function AppContent({
             <Routes>
               <Route path="/" element={<FolderWorkspace sidebarOpen={sidebarOpen} zoom={zoom} contentZoom={contentZoom} setZoom={setZoom} setContentZoom={setContentZoom} />} />
               <Route path="/folder/:id" element={<FolderWorkspace sidebarOpen={sidebarOpen} zoom={zoom} contentZoom={contentZoom} setZoom={setZoom} setContentZoom={setContentZoom} />} />
-              <Route path="/templates" element={<TemplateManager />} />
+
             </Routes>
           </div>
           <div id="global-statusbar" style={{
@@ -251,6 +261,7 @@ function AppContent({
           }} />
         </div>
         {settingsOpen && <Settings onClose={onCloseSettings} />}
+        {templateManagerOpen && <TemplateManager onClose={onCloseTemplateManager} />}
       </div>
     </ErrorBoundary>
   );

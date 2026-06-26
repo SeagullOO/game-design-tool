@@ -189,13 +189,14 @@ export async function storageListWorkspaceFiles(folderName: string): Promise<{ f
       // 跳过 .meta 元数据文件（legacy CSV 配套文件）
       if (e.name.endsWith(".meta")) continue;
       const ext = e.name.split(".").pop()?.toLowerCase();
-      let type: "md" | "excel" | null = null;
+      let type: "md" | "excel" | "docx" | null = null;
       if (ext === "md") type = "md";
+      else if (ext === "docx") type = "docx";
       else if (ext && EXCEL_EXTENSIONS.includes(ext)) type = "excel";
       else continue; // 忽略不识别文件
       folderFileMap.set(e.path, {
         id: generateId(), name: e.path, type,
-        content: type === "md" ? "" : { data: [[]] },
+        content: type === "md" ? "" : type === "docx" ? "" : { data: [[]] },
         createdAt: Date.now(), updatedAt: Date.now(),
       });
     }

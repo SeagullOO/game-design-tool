@@ -12,6 +12,9 @@
  * - 若被关闭的是第一个 Tab，切换到新的第一个 Tab
  * - 若关闭后无 Tab，currentFileId 设为 null
  *
+ * 拖拽排序：
+ * - moveTab(fromIndex, toIndex) 将 from 位置的 Tab 移动到 to 位置
+ *
  * 删除文件清理：
  * - cleanupDeletedFile() 在文件被删除后调用
  * - 移除对应 Tab 并将焦点转移到剩余的第一个文件
@@ -20,6 +23,7 @@
  * - openTabs, currentFileId, setCurrentFileId
  * - handleSelectTab(打开/切换到指定文件)
  * - handleCloseTab(关闭 Tab 并智能导航)
+ * - moveTab(拖拽排序)
  * - cleanupDeletedFile(文件删除后清理 Tab 状态)
  */
 
@@ -27,7 +31,7 @@ import { useState, useCallback } from "react";
 import type { Folder, FolderFile } from "../types";
 
 /**
- * useFileTabs — 文件 Tab 切换、打开、关闭逻辑
+ * useFileTabs — 文件 Tab 切换、打开、关闭、拖拽逻辑
  *
  * @param initialTab 初始打开的 Tab ID（可选）
  */
@@ -70,6 +74,19 @@ export function useFileTabs(initialTab?: string) {
   }, [currentFileId]);
 
   /**
+   * 拖拽排序：将 openTabs[fromIndex] 移动到 toIndex 位置
+   */
+  const moveTab = useCallback((fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setOpenTabs((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }, []);
+
+  /**
    * 删除文件后清理 tab 状态
    *
    * 外部删除文件（如通过 FileExplorer 右键菜单）后调用此函数，
@@ -92,6 +109,7 @@ export function useFileTabs(initialTab?: string) {
     setCurrentFileId,
     handleSelectTab,
     handleCloseTab,
+    moveTab,
     cleanupDeletedFile,
   };
 }

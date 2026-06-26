@@ -207,14 +207,14 @@ function GlobalSearchModal({ open, onClose }: GlobalSearchModalProps) {
                 style={{
                   fontSize: 10,
                   fontWeight: 600,
-                  color: r.file.type === "md" ? "var(--accent-text)" : "var(--success)",
+                  color: r.file.type === "md" ? "var(--accent-text)" : r.file.type === "docx" ? "var(--text-secondary)" : "var(--success)",
                   background: "var(--bg-active)",
                   borderRadius: 3,
                   padding: "1px 4px",
                   flexShrink: 0,
                 }}
               >
-                {r.file.type === "md" ? "MD" : "XLS"}
+                {r.file.type === "md" ? "MD" : r.file.type === "docx" ? "DOCX" : "XLSX"}
               </span>
               <span
                 style={{

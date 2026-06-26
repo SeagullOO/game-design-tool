@@ -1,6 +1,3 @@
-import type * as Monaco from "monaco-editor";
-import { t, getLang } from "../i18n";
-
 /**
  * EditorToolbar — Markdown 编辑器的格式工具栏
  *
@@ -8,11 +5,9 @@ import { t, getLang } from "../i18n";
  *         支持撤销/重做、标题（H1-H3）、加粗/斜体、无序/有序列表、引用、预览切换。
  *         每个按钮通过 Monaco 的 executeEdits() API 操作编辑器内容。
  *
- * 【视觉布局】flex 水平行（flex-wrap，gap: 0.5），px-3 py-1.5（约 36px 高度）。
- *           按钮间距通过 gap-0.5 + divider（1px 宽垂直分隔线）实现分组。
- *           - 左段：撤销 | 重做 | 分隔 | H1 H2 H3 | 分隔 | B I | 分隔 | 列表 有序 | 分隔 | 引用
- *           - 右段：flex-1 spacer | 分隔 | 预览切换按钮
- *           工具栏位于 FolderWorkspace zoom 容器外部，不受 Ctrl+滚轮缩放影响。
+ * 【继承】ToolbarContainer + ToolbarButton + ToolbarDivider
+ *         从 Toolbar.tsx 继承统一的容器样式、按钮尺寸和分隔线规范。
+ *         工具栏位于 FolderWorkspace zoom 容器外部，不受 Ctrl+滚轮缩放影响。
  *
  * 【交互链】
  *   - 每个按钮 → Monaco editor.executeEdits() / editor.trigger() / editor.focus()
@@ -25,8 +20,11 @@ import { t, getLang } from "../i18n";
  *     * 有选区：用 prefix + selectedText + suffix 包裹选区
  *   - prefixLine(prefix): 行首插入函数，在当前行开始插入指定前缀
  *   - 工具栏是纯命令发送者，不持有编辑器状态
- *   - 与 ExcelToolbar 视觉风格一致（tool-btn + divider 类）
  */
+
+import type * as Monaco from "monaco-editor";
+import { t, getLang } from "../i18n";
+import { ToolbarContainer, ToolbarButton, ToolbarDivider } from "./Toolbar";
 
 interface EditorToolbarProps {
   editorRef: React.MutableRefObject<Monaco.editor.IStandaloneCodeEditor | null>;
@@ -34,45 +32,6 @@ interface EditorToolbarProps {
   onTogglePreview: () => void;
 }
 
-interface ToolbarButtonProps {
-  onClick: () => void;
-  title: string;
-  children: React.ReactNode;
-}
-
-function ToolbarButton({ onClick, title, children }: ToolbarButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className="tool-btn"
-      style={{ color: "var(--text-tertiary)", background: "transparent" }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--bg-hover)";
-        e.currentTarget.style.color = "var(--text-secondary)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
-        e.currentTarget.style.color = "var(--text-tertiary)";
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Divider() {
-  return <div className="divider" />;
-}
-
-/**
- * EditorToolbar — Markdown 格式插入工具栏
- *
- * 每个按钮通过 Monaco 的 executeEdits() API 操作编辑器。
- * 编辑器自己维护 undo 栈，工具栏是纯命令发送者。
- * preview 模式切换由父组件 FolderWorkspace 管理。
- */
 function EditorToolbar({ editorRef, isPreviewMode, onTogglePreview }: EditorToolbarProps) {
   const lang = getLang();
   // 获取 Monaco editor 实例的便捷函数
@@ -88,7 +47,6 @@ function EditorToolbar({ editorRef, isPreviewMode, onTogglePreview }: EditorTool
     if (!ed) return;
     const sel = getSelection();
     if (!sel || sel.isEmpty()) {
-      // No selection — insert prefix+suffix and place cursor between them
       const pos = ed.getPosition();
       if (!pos) return;
       ed.executeEdits("toolbar", [
@@ -104,7 +62,6 @@ function EditorToolbar({ editorRef, isPreviewMode, onTogglePreview }: EditorTool
       ]);
       ed.setPosition({ lineNumber: pos.lineNumber, column: pos.column + prefix.length });
     } else {
-      // Wrap selection
       const selectedText = ed.getModel()?.getValueInRange(sel) ?? "";
       ed.executeEdits("toolbar", [
         { range: sel, text: prefix + selectedText + suffix },
@@ -146,79 +103,83 @@ function EditorToolbar({ editorRef, isPreviewMode, onTogglePreview }: EditorTool
   const handleQuote = () => prefixLine("> ");
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-0.5 px-3 py-1.5 flex-shrink-0"
-      style={{
-        background: "var(--bg-panel)",
-        borderBottom: "1px solid var(--border-subtle)",
-      }}
-    >
+    <ToolbarContainer>
+      {/* ── 撤销 / 重做 ── */}
       <ToolbarButton onClick={handleUndo} title={t("undo", lang) + " (Ctrl+Z)"}>
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="1 4 1 10 7 10" />
           <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
         </svg>
       </ToolbarButton>
       <ToolbarButton onClick={handleRedo} title={t("redo", lang) + " (Ctrl+Y)"}>
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="23 4 23 10 17 10" />
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
         </svg>
       </ToolbarButton>
 
-      <Divider />
+      <ToolbarDivider />
 
-      <ToolbarButton onClick={handleH1} title={t("heading1", lang)}>
-        <span className="font-bold text-[13px]">H1</span>
+      {/* ── 标题 H1-H3 ── */}
+      <ToolbarButton onClick={handleH1} title={t("heading1", lang)}
+        style={{ minWidth: 30, fontWeight: 700, fontSize: 12, justifyContent: "center" }}>
+        H1
       </ToolbarButton>
-      <ToolbarButton onClick={handleH2} title={t("heading2", lang)}>
-        <span className="font-semibold text-[12px]">H2</span>
+      <ToolbarButton onClick={handleH2} title={t("heading2", lang)}
+        style={{ minWidth: 30, fontWeight: 600, fontSize: 12, justifyContent: "center" }}>
+        H2
       </ToolbarButton>
-      <ToolbarButton onClick={handleH3} title={t("heading3", lang)}>
-        <span className="font-semibold text-[11px]">H3</span>
-      </ToolbarButton>
-
-      <Divider />
-
-      <ToolbarButton onClick={handleBold} title={t("bold", lang) + " (Ctrl+B)"}>
-        <span className="font-bold text-[13px]">B</span>
-      </ToolbarButton>
-      <ToolbarButton onClick={handleItalic} title={t("italic", lang) + " (Ctrl+I)"}>
-        <span className="italic text-[13px]">I</span>
+      <ToolbarButton onClick={handleH3} title={t("heading3", lang)}
+        style={{ minWidth: 30, fontWeight: 600, fontSize: 12, justifyContent: "center" }}>
+        H3
       </ToolbarButton>
 
-      <Divider />
+      <ToolbarDivider />
 
+      {/* ── 加粗 / 斜体 ── */}
+      <ToolbarButton onClick={handleBold} title={t("bold", lang) + " (Ctrl+B)"}
+        style={{ minWidth: 30, fontWeight: 700, fontSize: 13, justifyContent: "center" }}>
+        B
+      </ToolbarButton>
+      <ToolbarButton onClick={handleItalic} title={t("italic", lang) + " (Ctrl+I)"}
+        style={{ minWidth: 30, fontStyle: "italic", fontSize: 13, justifyContent: "center" }}>
+        I
+      </ToolbarButton>
+
+      <ToolbarDivider />
+
+      {/* ── 无序/有序列表 ── */}
       <ToolbarButton onClick={handleUl} title={t("ulList", lang)}>
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-          <circle cx="6" cy="6" r="1.5" />
-          <circle cx="6" cy="12" r="1.5" />
-          <circle cx="6" cy="18" r="1.5" />
-          <rect x="10" y="5" width="10" height="2" rx="0.5" />
-          <rect x="10" y="11" width="10" height="2" rx="0.5" />
-          <rect x="10" y="17" width="10" height="2" rx="0.5" />
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="5" cy="6" r="1.2" fill="currentColor" stroke="none" />
+          <line x1="9" y1="6" x2="19" y2="6" />
+          <circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+          <line x1="9" y1="12" x2="19" y2="12" />
+          <circle cx="5" cy="18" r="1.2" fill="currentColor" stroke="none" />
+          <line x1="9" y1="18" x2="19" y2="18" />
         </svg>
       </ToolbarButton>
       <ToolbarButton onClick={handleOl} title={t("olList", lang)}>
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-          <text x="2" y="9" fontSize="8" fontWeight="bold">1</text>
-          <rect x="10" y="5" width="10" height="2" rx="0.5" />
-          <text x="2" y="17" fontSize="8" fontWeight="bold">2</text>
-          <rect x="10" y="13" width="10" height="2" rx="0.5" />
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <text x="2" y="7.5" fontSize="7" fontWeight="bold" fill="currentColor" stroke="none">1</text>
+          <line x1="9" y1="6" x2="19" y2="6" />
+          <text x="2" y="14" fontSize="7" fontWeight="bold" fill="currentColor" stroke="none">2</text>
+          <line x1="9" y1="12.5" x2="19" y2="12.5" />
         </svg>
       </ToolbarButton>
 
-      <Divider />
+      <ToolbarDivider />
 
+      {/* ── 引用块 ── */}
       <ToolbarButton onClick={handleQuote} title={t("blockquote", lang)}>
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
           <path d="M6 17h3l2-4V7H5v6h3l-2 4zm8 0h3l2-4V7h-6v6h3l-2 4z" />
         </svg>
       </ToolbarButton>
 
       {/* Spacer + Preview toggle */}
       <div className="flex-1" />
-      <Divider />
+      <ToolbarDivider />
       <ToolbarButton onClick={onTogglePreview} title={t("togglePreview", lang)}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -226,7 +187,7 @@ function EditorToolbar({ editorRef, isPreviewMode, onTogglePreview }: EditorTool
         </svg>
         <span className="ml-1 text-[11px]">{t("preview", lang)}</span>
       </ToolbarButton>
-    </div>
+    </ToolbarContainer>
   );
 }
 

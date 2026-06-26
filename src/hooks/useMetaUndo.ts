@@ -42,14 +42,21 @@ export function popMetaUndo(): MetaSnapshot | undefined {
 export function restoreMetaUndo(hot: any): boolean {
   const snapshot = popMetaUndo();
   if (!snapshot || !hot || hot.isDestroyed) return false;
+  const recordFmt = (window as any).__recordFmt;
   for (const cell of snapshot.cells) {
     const { row, col, ...metas } = cell;
     if (row < 0 || col < 0) continue;
     for (const [key, value] of Object.entries(metas)) {
       hot.setCellMeta(row, col, key, value);
+      // 同步 fmtMap 以确保下次保存时写入撤销后的值
+      recordFmt?.(row, col, key, value);
     }
   }
   hot.render();
+  // 撤销后触发自动保存，将恢复的元数据持久化
+  (window as any).__triggerExcelSave?.();
+  // 通知工具栏刷新按钮状态
+  window.dispatchEvent(new CustomEvent("gull:meta-undo"));
   return true;
 }
 

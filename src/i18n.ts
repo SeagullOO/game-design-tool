@@ -65,10 +65,11 @@ const DICT: Record<string, { zh: string; en: string }> = {
   workspace: { zh: "工作区", en: "Workspace" },
   newMarkdown: { zh: "新建 Markdown", en: "New Markdown" },
   newExcel: { zh: "新建 Excel 表格", en: "New Excel Sheet" },
+  newDocx: { zh: "新建 Word 文档", en: "New Word Document" },
   saveAsTemplate: { zh: "保存为模版", en: "Save as Template" },
 
   // ── Sidebar ──
-  appTitle: { zh: "Gull", en: "Gull" },
+  appTitle: { zh: "GullDoc", en: "GullDoc" },
   folderWorkspace: { zh: "文件夹工作区", en: "Folder Workspace" },
   searchFolders: { zh: "搜索文件夹...", en: "Search folders..." },
   noFolders: { zh: "暂无文件夹", en: "No folders" },
@@ -97,6 +98,7 @@ const DICT: Record<string, { zh: string; en: string }> = {
   switchToLight: { zh: "切换亮色模式", en: "Switch to Light Mode" },
   untitledDocument: { zh: "未命名文档", en: "Untitled Document" },
   untitledSheet: { zh: "未命名表格", en: "Untitled Sheet" },
+  untitledDocx: { zh: "未命名文档", en: "Untitled Document" },
   newFolderDefault: { zh: "新建文件夹", en: "New Folder" },
   fileList: { zh: "文件列表", en: "File List" },
   newMdButton: { zh: "新建 Markdown", en: "New Markdown" },
@@ -175,7 +177,7 @@ const DICT: Record<string, { zh: string; en: string }> = {
   loadFailed: { zh: "加载失败", en: "Failed to load" },
   returnToFolderList: { zh: "← 返回文件夹列表", en: "← Back to folder list" },
   importedWorkspace: { zh: "导入的工作区", en: "Imported Workspace" },
-  noImportableFiles: { zh: "所选文件夹中没有可导入的文件（.md / .xlsx / .csv）", en: "No importable files found in the selected folder (.md / .xlsx / .csv)" },
+  noImportableFiles: { zh: "所选文件夹中没有可导入的文件（.md / .xlsx / .csv / .docx）", en: "No importable files found in the selected folder (.md / .xlsx / .csv / .docx)" },
 
   // ── Template Manager ──
   templateManagement: { zh: "模版管理", en: "Template Management" },
@@ -204,6 +206,7 @@ const DICT: Record<string, { zh: string; en: string }> = {
   noMatchingFile: { zh: "没有匹配的文件", en: "No matching files" },
   mdFiles: { zh: "Markdown 文件", en: "Markdown Files" },
   excelFiles: { zh: "Excel 表格", en: "Excel Sheets" },
+  docxFiles: { zh: "Word 文档", en: "Word Documents" },
 
   // ── Dialogs ──
   confirmDeleteFolder: { zh: "确定要删除这个文件夹吗？此操作不可撤销。", en: "Are you sure you want to delete this folder? This action cannot be undone." },

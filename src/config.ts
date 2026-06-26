@@ -39,7 +39,7 @@ export const COLOR_BG_SELECTED = "var(--bg-selected)";
 
 /** 侧边面板宽度（Sidebar / FileExplorer） */
 export const PANEL_WIDTH = 240;
-export const PANEL_MIN_WIDTH = 210;
+export const PANEL_MIN_WIDTH = 220;
 export const PANEL_MAX_WIDTH = 480;
 
 /** 分隔线：视觉宽度 + 拖拽判定范围 */
@@ -52,6 +52,54 @@ export const ACTIVITY_BAR_WIDTH = 48;
 /** TitleBar 高度 */
 export const TITLE_BAR_HEIGHT = 38;
 
+/** TitleBar 左内边距 */
+export const TITLE_BAR_PADDING_LEFT = 10;
+/** TitleBar 右内边距 */
+export const TITLE_BAR_PADDING_RIGHT = 6;
+/** TitleBar 左侧按钮间距 */
+export const TITLE_BAR_BUTTON_GAP = 8;
+/** TitleBar 中部标题字号 */
+export const TITLE_BAR_TITLE_FONT_SIZE = 12;
+/** TitleBar 中部标题水平内边距 */
+export const TITLE_BAR_TITLE_PADDING_X = 12;
+/** TitleBar 菜单最小宽度 */
+export const TITLE_BAR_MENU_MIN_WIDTH = 130;
+/** TitleBar 菜单距按钮偏移量 */
+export const TITLE_BAR_MENU_OFFSET = 4;
+/** TitleBar 工具栏按钮图标尺寸 */
+export const TITLE_BAR_ICON_SIZE = 18;
+/** TitleBar 关闭按钮图标尺寸 */
+export const TITLE_BAR_CLOSE_ICON_SIZE = 20;
+
+// 以下值需与 index.css 中的 .win-btn / .win-ctrl 保持同步
+/** TitleBar 工具栏按钮宽度 | 同步 index.css .win-btn */
+export const TITLE_BAR_BTN_WIDTH = 28;
+/** TitleBar 工具栏按钮高度 | 同步 index.css .win-btn */
+export const TITLE_BAR_BTN_HEIGHT = 28;
+/** TitleBar 工具栏按钮圆角 | 同步 index.css .win-btn */
+export const TITLE_BAR_BTN_RADIUS = 4;
+/** TitleBar 窗口控制按钮宽度 | 同步 index.css .win-ctrl */
+export const TITLE_BAR_CTRL_WIDTH = 36;
+/** TitleBar 窗口控制按钮高度 | 同步 index.css .win-ctrl */
+export const TITLE_BAR_CTRL_HEIGHT = 30;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PanelLayout — Settings / TemplateManager 共享面板尺寸
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 面板宽度 (CSS 值) */
+export const PANEL_LAYOUT_WIDTH = "80vw";
+/** 面板高度 (CSS 值) */
+export const PANEL_LAYOUT_HEIGHT = "90vh";
+/** 面板最大宽度 (px) */
+export const PANEL_LAYOUT_MAX_WIDTH = 1200;
+/** 面板最小宽度 (px) */
+export const PANEL_LAYOUT_MIN_WIDTH = 560;
+/** 面板最小高度 (px) */
+export const PANEL_LAYOUT_MIN_HEIGHT = 400;
+/** 面板遮罩背景色 */
+export const PANEL_BACKDROP = "rgba(0, 0, 0, 0.5)";
+
 /** FileExplorer 顶部栏高度 */
 export const EXPLORER_HEADER_HEIGHT = 36;
 
@@ -61,17 +109,32 @@ export const TREE_INDENT_BASE = 8;
 /** 文件树缩进：每层深度增量 */
 export const TREE_INDENT_PER_DEPTH = 10;
 
-/** 文件树：图标组到文字的间距 */
-export const TREE_ICON_GAP = 38;
+/** 文件树：图标宽度（文件夹和文件统一） */
+export const TREE_ICON_SIZE = 14;
+
+/** 文件树：图标高度（文件夹和文件统一） */
+export const TREE_ICON_HEIGHT = 12;
+
+/** 文件树：图标到文字的间距（文件夹和文件统一） */
+export const TREE_ICON_TEXT_GAP = 6;
+
+/** 文件树：图标左偏移（相对缩进基准点，= 箭头偏移(-8) + 箭头占位(16) + 间距(3)） */
+export const TREE_ICON_LEFT_OFFSET = 11;
+
+/**
+ * 文件树：图标区域总宽度（从缩进点到文字起始）
+ * = TREE_ICON_LEFT_OFFSET + TREE_ICON_SIZE + TREE_ICON_TEXT_GAP = 11 + 14 + 6 = 31
+ */
+export const TREE_ICON_GAP = 31;
 
 /** 文件树：折叠箭头在图标组内的左偏移 */
 export const TREE_CHEVRON_OFFSET = -8;
 
-/** 文件数：箭头占位宽度（文件图标对齐用） */
-export const TREE_CHEVRON_WIDTH = 4;
+/** 文件树：箭头占位宽度（= padding(3) + 图标(10) + padding(3) = 16） */
+export const TREE_CHEVRON_WIDTH = 16;
 
 /** 文件树：引导竖线相对箭头组的 X 偏移（箭头中心 = padding(3) + 图标(10)/2 = 8） */
-export const TREE_GUIDE_OFFSET = 10;
+export const TREE_GUIDE_OFFSET = 8;
 
 /** 文件树：选中文件夹的引导线高亮宽度 */
 export const TREE_GUIDE_HIGHLIGHT_WIDTH = 1;
@@ -144,6 +207,29 @@ export const KEYBINDINGS = {
   /** Escape — 取消（重命名/公式取消/搜索关闭） */
   cancel:            { key: "Escape" } as KeyBinding,
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Toolbar — 所有编辑器工具栏的排版参数
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 工具栏：容器内边距 */
+export const TOOLBAR_PADDING = "px-3 py-1.5";
+/** 工具栏：按钮间距 */
+export const TOOLBAR_GAP = "gap-0.5";
+/** 工具栏：按钮内边距 | 同步 index.css .tool-btn */
+export const TOOLBAR_BTN_PADDING = "2px 6px";
+/** 工具栏：按钮最小宽度 | 同步 index.css .tool-btn */
+export const TOOLBAR_BTN_MIN_WIDTH = 26;
+/** 工具栏：按钮高度 | 同步 index.css .tool-btn */
+export const TOOLBAR_BTN_HEIGHT = 26;
+/** 工具栏：按钮字号 | 同步 index.css .tool-btn */
+export const TOOLBAR_BTN_FONT_SIZE = 12;
+/** 工具栏：按钮圆角 | 同步 index.css .tool-btn */
+export const TOOLBAR_BTN_RADIUS = 3;
+/** 工具栏：分隔线尺寸 | 同步 index.css .divider */
+export const TOOLBAR_DIVIDER_WIDTH = 1;
+export const TOOLBAR_DIVIDER_HEIGHT = 20;
+export const TOOLBAR_DIVIDER_MARGIN = "0 2px";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Misc

@@ -61,6 +61,9 @@ import { dataToXlsxBase64, xlsxBase64ToData, createEmptyXlsxBase64 } from "../ut
 /** 新建 Markdown 文件的默认内容（TipTap 文档结构） */
 const defaultMdContent = { type: "doc", content: [{ type: "paragraph" }] };
 
+/** 新建 Docx 文件的默认内容（Tiptap HTML） */
+const defaultDocxContent = "<p></p>";
+
 /** 新建 Excel 文件的默认内容（26 列 x 100 行空表格） */
 function makeDefaultExcelContent() {
   const cols = 26;
@@ -122,8 +125,165 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
   const isElectron = typeof window !== "undefined" && "electronAPI" in window;
 
   // ─── File tabs ─────────────────────────────────────────────────────────
-  const { openTabs, currentFileId, setCurrentFileId, handleSelectTab, handleCloseTab } = useFileTabs();
+  const { openTabs, currentFileId, setCurrentFileId, handleSelectTab, handleCloseTab, moveTab } = useFileTabs();
   const currentFile = folder?.files.find((f) => f.id === currentFileId) ?? null;
+
+  // ─── Tab 拖拽：window 级鼠标事件 ──────────────────────────────────
+  const dragRef = useRef({ idx: -1, x: 0, dragging: false, fileId: null as string | null });
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const dropIndicatorRef = useRef<HTMLDivElement>(null);
+  const moveTabRef = useRef(moveTab);
+  moveTabRef.current = moveTab;
+  const setCurrentFileIdRef = useRef(setCurrentFileId);
+  setCurrentFileIdRef.current = setCurrentFileId;
+  const openTabsRef = useRef(openTabs);
+  openTabsRef.current = openTabs;
+
+  // 获取仅包含实际 tab 元素的数组（排除指示器等非 tab 子元素）
+  const getTabs = () => {
+    const bar = tabBarRef.current;
+    if (!bar) return [];
+    return Array.from(bar.querySelectorAll(":scope > .tab")) as HTMLElement[];
+  };
+
+  /**
+   * 中点法计算拖拽插入位置。
+   *
+   * VS Code tabsTitleControl 的算法本质：
+   * 1. 对每个非拖拽标签取水平中点作为分界线
+   * 2. 鼠标在中点左侧 → 插入到该标签前面（gap = postIdx）
+   * 3. 鼠标在中点右侧 → 插入到该标签后面（gap = postIdx + 1）
+   * 4. 鼠标在间隙中 → 最近距离原则确定插入位置
+   *
+   * 这样向左和向右拖拽的感觉完全对称。
+   *
+   * @returns toIndex — post-removal 数组中的插入索引（0..openTabs.length-1）
+   */
+  const computeInsertIndex = (
+    mouseX: number,
+    fromIdx: number,
+    tabs: HTMLElement[]
+  ): number => {
+    if (tabs.length <= 1) return 0;
+
+    let bestGap = 0;
+    let bestDist = Infinity;
+    // postIdx 遍历的是 "排除被拖拽标签后的 post-removal 索引"
+    let postIdx = 0;
+
+    for (let i = 0; i < tabs.length; i++) {
+      if (i === fromIdx) continue;
+
+      const rect = tabs[i].getBoundingClientRect();
+      const mid = (rect.left + rect.right) / 2;
+
+      // 鼠标在标签中点左侧 → 插入该标签前面 (gap = postIdx)
+      // 鼠标在标签中点右侧 → 插入该标签后面 (gap = postIdx + 1)
+      const gap = mouseX < mid ? postIdx : postIdx + 1;
+
+      // 使用该标签对应的边缘来计算距离
+      const targetX = mouseX < mid ? rect.left : rect.right;
+      const dist = Math.abs(mouseX - targetX);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestGap = gap;
+      }
+      postIdx++;
+    }
+
+    // clamp to valid post-removal range
+    const maxIdx = tabs.length - 1; // post-removal 数组最大索引
+    return Math.max(0, Math.min(bestGap, maxIdx));
+  };
+
+  // 全局 mousemove / mouseup：统一处理拖拽视觉反馈和释放
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const d = dragRef.current;
+      if (d.idx < 0 || !d.fileId) return;
+      if (!d.dragging && Math.abs(e.clientX - d.x) > 4) {
+        d.dragging = true;
+      }
+      if (!d.dragging) return;
+
+      const tabs = getTabs();
+      if (tabs.length === 0) return;
+      const indicator = dropIndicatorRef.current;
+
+      // 从 DOM 中定位被拖拽的 tab（通过已设置的 tab-dragging class）
+      let dragIdx = -1;
+      for (let i = 0; i < tabs.length; i++) {
+        if (tabs[i].classList.contains("tab-dragging")) { dragIdx = i; break; }
+      }
+      if (dragIdx < 0) {
+        // 首次进入：通过 fileId 在 openTabs 中找到真实索引，设置 dragging class
+        const idx = openTabsRef.current.indexOf(d.fileId);
+        if (idx >= 0 && idx < tabs.length) {
+          tabs[idx].classList.add("tab-dragging");
+        }
+      }
+
+      // 找到被拖拽标签的 DOM 索引（用于在后续逻辑中排除它）
+      const fromIdxMove = openTabsRef.current.indexOf(d.fileId);
+      if (fromIdxMove < 0) return;
+
+      const toIndex = computeInsertIndex(e.clientX, fromIdxMove, tabs);
+
+      // 将 post-removal toIndex 映射回原始 DOM 索引来定位指示线
+      // toIndex 是插入到 post-removal 数组中的位置
+      // 在原始 DOM 中，拖拽标签从位置 fromIdx 移除，所以：
+      //   toIndex < fromIdx  → DOM 位置不变 (at toIndex)
+      //   toIndex >= fromIdx → DOM 位置 +1 (因为移除的标签占了 fromIdx)
+      const indicatorOrigIdx = toIndex >= fromIdxMove ? toIndex + 1 : toIndex;
+
+      if (indicator) {
+        if (indicatorOrigIdx < tabs.length) {
+          indicator.style.left = tabs[indicatorOrigIdx].offsetLeft + "px";
+        } else {
+          const lastTab = tabs[tabs.length - 1];
+          indicator.style.left = (lastTab.offsetLeft + lastTab.offsetWidth) + "px";
+        }
+        indicator.style.display = "block";
+      }
+    };
+
+    const onUp = (e: MouseEvent) => {
+      const d = dragRef.current;
+
+      // 始终清理视觉状态 — 即使提前退出也要清除高亮残留
+      const tabs = getTabs();
+      for (let i = 0; i < tabs.length; i++) {
+        tabs[i].classList.remove("tab-dragging");
+      }
+      const indicator = dropIndicatorRef.current;
+      if (indicator) indicator.style.display = "none";
+
+      if (d.idx < 0 || !d.fileId) { d.idx = -1; d.dragging = false; d.fileId = null; return; }
+
+      if (d.dragging) {
+        if (tabs.length > 0) {
+          const fromIdx = openTabsRef.current.indexOf(d.fileId);
+          if (fromIdx < 0) { d.idx = -1; d.dragging = false; d.fileId = null; return; }
+
+          const toIndex = computeInsertIndex(e.clientX, fromIdx, tabs);
+
+          if (toIndex !== fromIdx) moveTabRef.current(fromIdx, toIndex);
+        }
+      } else {
+        if (d.fileId) setCurrentFileIdRef.current(d.fileId);
+      }
+
+      d.idx = -1; d.x = 0; d.dragging = false; d.fileId = null;
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Electron: 当选中的文件内容为空时，从磁盘加载内容
   useEffect(() => {
@@ -329,6 +489,17 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
   const loadFolders = useCallback(async () => { setFolders(await storageLoadFolders()); setHomeLoaded(true); }, []);
 
   useEffect(() => { loadFolders(); }, [loadFolders]);
+
+  // ─── Home mode: 点击非工作区条目区域取消选中 ─────────────────────────
+  useEffect(() => {
+    if (viewMode !== "home") return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.side-item')) setSelectedFolderId(null);
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [viewMode]);
 
   // ─── 工作区模式：加载文件夹 ──────────────────────────────────────────
   // 从存储获取完整文件夹数据，包括文件列表和子文件夹路径。
@@ -590,10 +761,10 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
   const isDisk = !!eapi;
 
   /** 添加新文件 */
-  const handleAddFile = async (type: "md" | "excel") => {
+  const handleAddFile = async (type: "md" | "excel" | "docx") => {
     if (!folderId || !folder) return;
-    const base = type === "md" ? t("untitledDocument", lang) : t("untitledSheet", lang);
-    const ext = type === "md" ? ".md" : ".xlsx";
+    const base = type === "md" ? t("untitledDocument", lang) : type === "docx" ? t("untitledDocx", lang) : t("untitledSheet", lang);
+    const ext = type === "md" ? ".md" : type === "docx" ? ".docx" : ".xlsx";
     // 若选中了文件夹，新文件创建在选中的文件夹内
     const prefix = targetFolderPath ? `${targetFolderPath}/` : "";
     let basename = prefix + base + ext;
@@ -609,15 +780,15 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
         const emptyXlsx = await createEmptyXlsxBase64();
         await storageWriteWorkspaceFileBinary(folder.name, basename, emptyXlsx);
       } else {
-        await storageWriteWorkspaceFile(folder.name, basename, "");
+        await storageWriteWorkspaceFile(folder.name, basename, type === "docx" ? defaultDocxContent : "");
       }
-      const file: FolderFile = { id: fileId, name: basename, type, content: type === "md" ? defaultMdContent : defaultExcelContent, createdAt: Date.now(), updatedAt: Date.now() };
+      const file: FolderFile = { id: fileId, name: basename, type, content: type === "md" ? defaultMdContent : type === "docx" ? defaultDocxContent : defaultExcelContent, createdAt: Date.now(), updatedAt: Date.now() };
       const files = [...(folder?.files || []), file];
       setFolder((prev) => prev ? { ...prev, files, updatedAt: Date.now() } : null);
       handleSelectTab(file.id);
       setNewFileId(file.id);
     } else {
-      const file: FolderFile = { id: fileId, name: basename, type, content: type === "md" ? defaultMdContent : defaultExcelContent, createdAt: Date.now(), updatedAt: Date.now() };
+      const file: FolderFile = { id: fileId, name: basename, type, content: type === "md" ? defaultMdContent : type === "docx" ? defaultDocxContent : defaultExcelContent, createdAt: Date.now(), updatedAt: Date.now() };
       const files = [...(folder?.files || []), file];
       await storageUpdateFolder(folderId, { files, updatedAt: Date.now() });
       setFolder((prev) => prev ? { ...prev, files, updatedAt: Date.now() } : null);
@@ -813,6 +984,11 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
         onGoWorkspace={handleGoWorkspace}
       />
       <div ref={uiZoomRef} data-ui-zoom className="flex-1 flex overflow-hidden"
+        onClick={(e) => {
+          if (viewMode !== "home") return;
+          const target = e.target as HTMLElement;
+          if (!target.closest('.side-item')) setSelectedFolderId(null);
+        }}
         onMouseDown={(e) => {
           const sp = splitterRef.current;
           if (!sp || !sidebarOpen) return;
@@ -829,7 +1005,8 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
             <Sidebar folders={folders} selectedId={selectedFolderId} searchQuery={searchQuery}
               onSearchChange={setSearchQuery} onSelectFolder={handleSelectFolder} onDoubleClick={handleEnterFolder}
               onCreateNew={handleCreateNew} onCreateFromTemplate={() => setTemplateModalOpen(true)}
-              onRename={handleRenameFolder} onDelete={handleDeleteFolder} onCopy={handleCopyFolder} />
+              onRename={handleRenameFolder} onDelete={handleDeleteFolder} onCopy={handleCopyFolder}
+              onDeselectAll={() => setSelectedFolderId(null)} />
           ) : null
         ) : (
           <FileExplorer folderName={folder!.name} files={folder!.files} folderPaths={folder?.folders || []}
@@ -857,7 +1034,7 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
         {viewMode === "home" ? (
           <>
             <TemplateModal open={templateModalOpen} onClose={() => setTemplateModalOpen(false)} onSelect={handleCreateFromTemplate} />
-            <div className="flex-1 flex flex-col items-center justify-center">
+            <div className="flex-1 flex flex-col items-center justify-center" onClick={() => setSelectedFolderId(null)}>
               <div className="text-5xl mb-4 opacity-20">+</div>
               <p style={{ color: "var(--text-tertiary)", fontSize: 14 }}>{t("selectFolderToStart", lang)}</p>
               <div className="flex gap-3 mt-6">
@@ -865,6 +1042,13 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
                 <button onClick={handleCreateNew} className="btn-secondary py-1.5 px-4 text-[13px]">{t("newWorkspaceBtn", lang)}</button>
                 <button onClick={() => setTemplateModalOpen(true)} className="btn-secondary py-1.5 px-4 text-[13px]">{t("fromTemplateBtn", lang)}</button>
               </div>
+              <button
+                onClick={() => (window as any).__openTemplateManager?.()}
+                className="mt-4 text-[11px]"
+                style={{ color: "var(--text-tertiary)", background: "transparent", border: "none", cursor: "pointer" }}
+              >
+                {t("manageTemplates", lang)}
+              </button>
             </div>
           </>
         ) : (
@@ -927,8 +1111,8 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
               <StatusBadge status={saveStatus} />
             </header>
 
-            {!currentFile ? (
-              <div className="flex-1 flex items-center justify-center m-4">
+            {openTabFiles.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
                   <div className="text-4xl mb-4 opacity-20">+</div>
                   <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>{t("selectFileToStart", lang)}</p>
@@ -936,15 +1120,30 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
               </div>
             ) : (
               <>
-                <div className="tab-bar" id="tab-bar">
-                  {openTabFiles.map((file) => (
+                <div className="tab-bar" id="tab-bar" ref={tabBarRef}>
+                  <div ref={dropIndicatorRef} className="tab-drop-indicator" />
+                  {openTabFiles.map((file, idx) => (
                     <div key={file.id}
                       className={`tab ${currentFileId === file.id ? "active" : ""}`}
-                      onClick={() => handleTabClick(file.id)}>
-                      <span style={{ fontSize: 11, opacity: 0.4 }}>{file.type === "md" ? "M" : "E"}</span>
-                      <span>{(file.name.split("/").pop() || "").replace(/\.(md|csv|xlsx)$/, "")}</span>
+                      onMouseDown={(e) => {
+                        // 中键关闭
+                        if (e.button === 1) {
+                          e.preventDefault();
+                          handleCloseTab(file.id, e as any);
+                          return;
+                        }
+                        // 右键不处理
+                        if (e.button !== 0) return;
+                        // 关闭按钮上不启动拖拽
+                        if ((e.target as HTMLElement).closest(".tab-close")) return;
+                        // 启动潜在拖拽（由 window mousemove/mouseup 处理拖拽和点击）
+                        e.preventDefault();
+                        dragRef.current = { idx, x: e.clientX, dragging: false, fileId: file.id };
+                      }}>
+                      <span style={{ fontSize: 11, opacity: 0.4 }}>{file.type === "md" ? "M" : file.type === "docx" ? "W" : "E"}</span>
+                      <span>{file.name.split("/").pop() || ""}</span>
                       {currentFileId === file.id && <span className="tab-dirty" />}
-                      <button className="tab-close" onClick={(e) => handleCloseTab(file.id, e)}>×</button>
+                      <button className="tab-close" onClick={(e) => { e.stopPropagation(); const wrapped = handleCloseTab; return wrapped(file.id, e as any); }}>×</button>
                     </div>
                   ))}
                 </div>
@@ -1000,7 +1199,7 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
                   </>
                 )}
                 <div ref={wsZoomRef} data-workspace-zoom style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                {currentFile.type === "md" ? (
+                {currentFile?.type === "md" ? (
                   <MarkdownEditor
                     source={source}
                     onSourceChange={setSource}

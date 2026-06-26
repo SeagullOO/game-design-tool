@@ -4,8 +4,8 @@ import { useNavigate } from "react-router-dom";
 import type { FolderFile } from "../types";
 import { t, getLang } from "../i18n";
 import Panel from "./Panel";
-import { EXPLORER_HEADER_HEIGHT, TREE_INDENT_BASE, TREE_INDENT_PER_DEPTH, TREE_ICON_GAP, TREE_CHEVRON_OFFSET, TREE_CHEVRON_WIDTH, TREE_GUIDE_OFFSET, TREE_GUIDE_HIGHLIGHT_WIDTH, TREE_GUIDE_HIGHLIGHT_COLOR, KEYBINDINGS } from "../config";
-import { ChevronIcon, MdFileIcon, ExcelFileIcon, NewFolderIcon, RefreshIcon, BackIcon, SearchIcon, SunIcon, MoonIcon } from "./icons";
+import { EXPLORER_HEADER_HEIGHT, TREE_INDENT_BASE, TREE_INDENT_PER_DEPTH, TREE_ICON_GAP, TREE_ICON_SIZE, TREE_ICON_HEIGHT, TREE_ICON_TEXT_GAP, TREE_ICON_LEFT_OFFSET, TREE_CHEVRON_OFFSET, TREE_CHEVRON_WIDTH, TREE_GUIDE_OFFSET, TREE_GUIDE_HIGHLIGHT_WIDTH, TREE_GUIDE_HIGHLIGHT_COLOR, KEYBINDINGS } from "../config";
+import { ChevronIcon, MdFileIcon, DocxFileIcon, ExcelFileIcon, NewFolderIcon, RefreshIcon, BackIcon, SearchIcon, SunIcon, MoonIcon } from "./icons";
 
 /**
  * FileExplorer — 文件资源管理器（工作区视图的左侧面板）
@@ -486,10 +486,10 @@ function FileExplorer({
               <span
                 onClick={(e) => { e.stopPropagation(); toggleFolder(node.path); }}
                 style={{ opacity: 0.5, flexShrink: 0, transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.12s ease", cursor: "pointer", padding: 3, pointerEvents: "auto", display: "inline-flex" }}>
-                <ChevronIcon width={6} height={6} />
+                <ChevronIcon width={10} height={10} />
               </span>
-              <span style={{ position: "relative", width: 14, height: 12, flexShrink: 0, opacity: 0.5, pointerEvents: "none" }}>
-                <span style={{ position: "absolute", bottom: 0, left: 0, width: 14, height: isExpanded ? 10 : 11, background: "currentColor", borderRadius: "0 2px 2px 2px" }} />
+              <span style={{ position: "relative", width: TREE_ICON_SIZE, height: TREE_ICON_HEIGHT, flexShrink: 0, opacity: 0.5, pointerEvents: "none" }}>
+                <span style={{ position: "absolute", bottom: 0, left: 0, width: TREE_ICON_SIZE, height: isExpanded ? 10 : 11, background: "currentColor", borderRadius: "0 2px 2px 2px" }} />
                 <span style={{ position: "absolute", top: 0, left: 0, width: 8, height: 4, background: "currentColor", borderRadius: "2px 2px 0 0" }} />
               </span>
             </span>
@@ -517,6 +517,7 @@ function FileExplorer({
 
     const file = node.file!;
     const isMd = file.type === "md";
+    const isDocx = file.type === "docx";
     return (
       <div
         key={file.id}
@@ -525,9 +526,9 @@ function FileExplorer({
         onDragEnd={() => { dragFileId.current = null; }}
         onClick={(e) => { e.stopPropagation(); setSelectedFolderPath(null); onSelectFolderPath?.(null); setHighlightFileId(file.id); onSelectFile(file.id); }}
         onContextMenu={(e) => handleContextMenu(e, file.id)}
-        className={`tree-row group px-2 py-1 mx-1 cursor-pointer transition-colors duration-100 flex items-center gap-1${highlightFileId === file.id && !selectedFolderPath ? " active" : ""}`}
+        className={`tree-row group px-2 py-1 mx-1 cursor-pointer transition-colors duration-100 flex items-center${highlightFileId === file.id && !selectedFolderPath ? " active" : ""}`}
         style={{
-          borderRadius: "var(--radius)", paddingLeft: `${TREE_INDENT_BASE + depth * TREE_INDENT_PER_DEPTH + TREE_CHEVRON_WIDTH}px`,
+          borderRadius: "var(--radius)", paddingLeft: `${TREE_INDENT_BASE + depth * TREE_INDENT_PER_DEPTH + TREE_ICON_GAP}px`,
           color: highlightFileId === file.id && !selectedFolderPath ? "var(--accent-text)" : "var(--text-secondary)",
           background: highlightFileId === file.id && !selectedFolderPath ? "var(--bg-selected)" : "transparent",
           position: "relative",
@@ -557,7 +558,20 @@ function FileExplorer({
             />
           );
         })}
-        <span style={{ width: 10, flexShrink: 0 }} />
+        {/* File icon: absolutely positioned, aligned with folder icon (after chevron area) */}
+        <span style={{
+          position: "absolute",
+          left: `${TREE_INDENT_BASE + depth * TREE_INDENT_PER_DEPTH + TREE_ICON_LEFT_OFFSET}px`,
+          top: 0, bottom: 0,
+          display: "flex", alignItems: "center",
+        }}>
+          {isMd
+            ? <MdFileIcon width={TREE_ICON_SIZE} height={TREE_ICON_HEIGHT} style={{ opacity: 0.5, flexShrink: 0 }} />
+            : isDocx
+            ? <DocxFileIcon width={TREE_ICON_SIZE} height={TREE_ICON_HEIGHT} style={{ opacity: 0.5, flexShrink: 0 }} />
+            : <ExcelFileIcon width={TREE_ICON_SIZE} height={TREE_ICON_HEIGHT} style={{ opacity: 0.5, flexShrink: 0 }} />
+          }
+        </span>
         {renamingId === file.id ? (
           <input
             ref={renameInputRef} value={renameValue}
@@ -569,13 +583,7 @@ function FileExplorer({
             style={{ borderColor: "var(--accent)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
           />
         ) : (
-          <>
-            {isMd
-              ? <MdFileIcon width={12} height={12} style={{ opacity: 0.5, flexShrink: 0 }} />
-              : <ExcelFileIcon width={12} height={12} style={{ opacity: 0.5, flexShrink: 0 }} />
-            }
-            <span className="text-[12px] truncate flex-1">{node.name.replace(/\.(md|csv|xlsx)$/, "")}</span>
-          </>
+          <span className="text-[12px] truncate flex-1">{node.name}</span>
         )}
       </div>
     );
@@ -646,7 +654,7 @@ function FileExplorer({
             e.stopPropagation();
             const raw = localStorage.getItem("gull_recent_workspaces");
             const recent: { id: number; name: string }[] = raw ? JSON.parse(raw) : [];
-            setWorkspaceMenu(recent.slice(0, 7));
+            setWorkspaceMenu(recent.slice(0, 5));
           }}
           className="fe-workspace-btn text-[11px] font-medium truncate max-w-full text-left px-1 py-0.5 rounded"
           style={{ color: "var(--text-secondary)", background: "transparent", border: "none", cursor: "pointer" }}
@@ -654,11 +662,20 @@ function FileExplorer({
         >
           {folderName}
         </button>
-        {/* 工作区切换菜单：Portal 弹出最近使用的 7 个工作区列表，底部带"打开其他工作区"入口 */}
+        {/* 工作区切换菜单：Portal 弹出，定位在按钮上方 */}
         {workspaceMenu && workspaceMenu.length > 0 && createPortal(
-          <div className="fixed" style={{ left: 44, bottom: 44, zIndex: 1000 }}
+          <div className="fixed" style={{ zIndex: 1000 }}
+            ref={(el) => {
+              if (!el) return;
+              const btn = document.querySelector(".fe-workspace-btn");
+              if (btn) {
+                const r = btn.getBoundingClientRect();
+                el.style.left = r.left - 20 + "px";
+                el.style.bottom = (window.innerHeight - r.top + 8) + "px";
+              }
+            }}
             onClick={(e) => e.stopPropagation()}>
-            <div className="context-menu">
+            <div className="context-menu" style={{ position: "absolute", bottom: 0 }}>
               {workspaceMenu.map((w) => (
                 <button key={w.id}
                   onClick={() => { navigate(`/folder/${w.id}`); setWorkspaceMenu(null); }}

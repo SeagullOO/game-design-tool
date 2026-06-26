@@ -26,12 +26,12 @@
  */
 import { t, getLang } from "../i18n";
 import { ACTIVITY_BAR_WIDTH } from "../config";
-import { HomeIcon, FolderIcon, NewMdIcon, NewExcelIcon, SaveIcon } from "./icons";
+import { HomeIcon, FolderIcon, NewMdIcon, NewDocxIcon, NewExcelIcon, SaveIcon } from "./icons";
 
 interface ActivityBarProps {
   activeView: "home" | "workspace";
   showActions?: boolean;
-  onAddFile: (type: "md" | "excel") => void;
+  onAddFile: (type: "md" | "excel" | "docx") => void;
   onSaveAsTemplate: () => void;
   onGoHome: () => void;
   onGoWorkspace: () => void;
@@ -82,6 +82,7 @@ function ActivityBar({ activeView, showActions = true, onAddFile, onSaveAsTempla
   const workspaceIcon = <FolderIcon width={16} height={16} />;
   const newMdIcon = <NewMdIcon width={16} height={16} />;
   const newExcelIcon = <NewExcelIcon width={16} height={16} />;
+  const newDocxIcon = <NewDocxIcon width={16} height={16} />;
 
   return (
     <div style={barStyle}>
@@ -118,6 +119,15 @@ function ActivityBar({ activeView, showActions = true, onAddFile, onSaveAsTempla
             title={t("newMarkdown", lang)}
           >
             {newMdIcon}
+          </button>
+
+          {/* New Word */}
+          <button
+            onClick={() => onAddFile("docx")}
+            className="act-btn"
+            title={t("newDocx", lang)}
+          >
+            {newDocxIcon}
           </button>
 
           {/* New Excel */}

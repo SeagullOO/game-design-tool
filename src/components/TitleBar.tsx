@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { t, getLang } from "../i18n";
-import { TITLE_BAR_HEIGHT } from "../config";
+import { TITLE_BAR_HEIGHT, TITLE_BAR_PADDING_LEFT, TITLE_BAR_PADDING_RIGHT, TITLE_BAR_BUTTON_GAP, TITLE_BAR_TITLE_FONT_SIZE, TITLE_BAR_TITLE_PADDING_X, TITLE_BAR_MENU_MIN_WIDTH, TITLE_BAR_MENU_OFFSET, TITLE_BAR_ICON_SIZE, TITLE_BAR_CLOSE_ICON_SIZE } from "../config";
 import { GearIcon, FolderIcon, SidebarIcon, SearchIcon, MinimizeIcon, MaximizeIcon, RestoreIcon, CloseIcon } from "./icons";
 
 /**
@@ -59,13 +59,10 @@ function TitleBar({ onToggleSidebar, onSearch, onOpenSettings, sidebarOpen = tru
   const handleMaximize = () => api?.windowMaximize?.();
   const handleClose = () => api?.windowClose?.();
 
-  // 标题栏高度
-  const barH = TITLE_BAR_HEIGHT;
-
   return (
     <div
       style={{
-        height: barH,
+        height: TITLE_BAR_HEIGHT,
         display: "flex",
         alignItems: "center",
         background: "var(--bg-panel)",
@@ -73,18 +70,18 @@ function TitleBar({ onToggleSidebar, onSearch, onOpenSettings, sidebarOpen = tru
         WebkitAppRegion: "drag",
         userSelect: "none",
         flexShrink: 0,
-        paddingLeft: 10,
-        paddingRight: 6,
+        paddingLeft: TITLE_BAR_PADDING_LEFT,
+        paddingRight: TITLE_BAR_PADDING_RIGHT,
       }}
     >
       {/* Left: settings + sidebar toggle + search */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, WebkitAppRegion: "no-drag" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: TITLE_BAR_BUTTON_GAP, WebkitAppRegion: "no-drag" }}>
         <button
           onClick={onOpenSettings}
           title={t("settings", lang)}
           className="win-btn"
         >
-          <GearIcon width={18} height={18} />
+          <GearIcon width={TITLE_BAR_ICON_SIZE} height={TITLE_BAR_ICON_SIZE} />
         </button>
         <button
           ref={fileMenuBtnRef}
@@ -92,7 +89,7 @@ function TitleBar({ onToggleSidebar, onSearch, onOpenSettings, sidebarOpen = tru
           title={t("fileMenu", lang)}
           className="win-btn"
         >
-          <FolderIcon width={18} height={18} />
+          <FolderIcon width={TITLE_BAR_ICON_SIZE} height={TITLE_BAR_ICON_SIZE} />
         </button>
         {/* 文件 dropdown menu: 通过 Portal 渲染到 document.body，避免被父容器裁剪 */}
         {fileMenuOpen && fileMenuBtnRef.current && createPortal(
@@ -100,9 +97,9 @@ function TitleBar({ onToggleSidebar, onSearch, onOpenSettings, sidebarOpen = tru
             className="context-menu animate-in"
             style={{
               position: "fixed",
-              top: fileMenuBtnRef.current.getBoundingClientRect().bottom + 4,
+              top: fileMenuBtnRef.current.getBoundingClientRect().bottom + TITLE_BAR_MENU_OFFSET,
               left: fileMenuBtnRef.current.getBoundingClientRect().left,
-              minWidth: 130,
+              minWidth: TITLE_BAR_MENU_MIN_WIDTH,
             }}
           >
             <button className="context-menu-item" onClick={() => {
@@ -142,14 +139,14 @@ function TitleBar({ onToggleSidebar, onSearch, onOpenSettings, sidebarOpen = tru
           title={sidebarOpen ? t("toggleSidebar", lang) : t("expandSidebar", lang)}
           className="win-btn"
         >
-          <SidebarIcon width={18} height={18} />
+          <SidebarIcon width={TITLE_BAR_ICON_SIZE} height={TITLE_BAR_ICON_SIZE} />
         </button>
         <button
           onClick={onSearch}
           title={t("search", lang)}
           className="win-btn"
         >
-          <SearchIcon width={18} height={18} />
+          <SearchIcon width={TITLE_BAR_ICON_SIZE} height={TITLE_BAR_ICON_SIZE} />
         </button>
       </div>
 
@@ -158,12 +155,12 @@ function TitleBar({ onToggleSidebar, onSearch, onOpenSettings, sidebarOpen = tru
         style={{
           flex: 1,
           textAlign: "center",
-          fontSize: 12,
+          fontSize: TITLE_BAR_TITLE_FONT_SIZE,
           color: "var(--text-secondary)",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
-          padding: "0 12px",
+          padding: `0 ${TITLE_BAR_TITLE_PADDING_X}px`,
         }}
       >
         {activeFileName || ""}
@@ -176,7 +173,7 @@ function TitleBar({ onToggleSidebar, onSearch, onOpenSettings, sidebarOpen = tru
           className="win-btn win-ctrl"
           title={t("minimize", lang)}
         >
-          <MinimizeIcon width={18} height={18} />
+          <MinimizeIcon width={TITLE_BAR_ICON_SIZE} height={TITLE_BAR_ICON_SIZE} />
         </button>
         <button
           onClick={handleMaximize}
@@ -184,14 +181,14 @@ function TitleBar({ onToggleSidebar, onSearch, onOpenSettings, sidebarOpen = tru
           title={isMaximized ? t("restore", lang) : t("maximize", lang)}
         >
           {/* 根据最大化状态切换图标：最大化时显示还原图标（双矩形），否则显示最大化图标（单矩形） */}
-          {isMaximized ? <RestoreIcon width={18} height={18} /> : <MaximizeIcon width={18} height={18} />}
+          {isMaximized ? <RestoreIcon width={TITLE_BAR_ICON_SIZE} height={TITLE_BAR_ICON_SIZE} /> : <MaximizeIcon width={TITLE_BAR_ICON_SIZE} height={TITLE_BAR_ICON_SIZE} />}
         </button>
         <button
           onClick={handleClose}
           className="win-btn win-ctrl win-btn-close"
           title={t("close", lang)}
         >
-          <CloseIcon width={20} height={20} />
+          <CloseIcon width={TITLE_BAR_CLOSE_ICON_SIZE} height={TITLE_BAR_CLOSE_ICON_SIZE} />
         </button>
       </div>
     </div>

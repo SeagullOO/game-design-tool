@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { hexToHsv, hsvToHex } from "../utils/colorUtils";
 import { t, getLang } from "../i18n";
 import { KEYBINDINGS } from "../config";
+import { ToolbarContainer, ToolbarButton, ToolbarDivider } from "./Toolbar";
 import { pushMetaUndo, type MetaCellSnapshot } from "../hooks/useMetaUndo";
 
 /**
@@ -182,11 +183,15 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
     updateFromSelection();
     hot.addHook("afterSelection", updateFromSelection);
     hot.addHook("afterSelectionEnd", updateFromSelection);
+    // 监听元数据撤销事件，刷新工具栏按钮状态
+    const onMetaUndo = () => updateFromSelection();
+    window.addEventListener("gull:meta-undo", onMetaUndo);
     return () => {
       if (hot && !hot.isDestroyed) {
         hot.removeHook("afterSelection", updateFromSelection);
         hot.removeHook("afterSelectionEnd", updateFromSelection);
       }
+      window.removeEventListener("gull:meta-undo", onMetaUndo);
     };
   }, [hot, updateFromSelection]);
 
@@ -242,11 +247,25 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
     (window as any).__triggerExcelSave?.();
   };
 
-  const handleBold = () =>
-    applyToSelection("_bold", (cur: boolean) => !cur);
+  const handleBold = () => {
+    if (hot && !hot.isDestroyed) {
+      const sel = hot.getSelected();
+      if (sel && sel.length > 0) {
+        applyToSelection("_bold", (cur: boolean) => !cur);
+        setCurrentBold((prev) => !prev);
+      }
+    }
+  };
 
-  const handleItalic = () =>
-    applyToSelection("_italic", (cur: boolean) => !cur);
+  const handleItalic = () => {
+    if (hot && !hot.isDestroyed) {
+      const sel = hot.getSelected();
+      if (sel && sel.length > 0) {
+        applyToSelection("_italic", (cur: boolean) => !cur);
+        setCurrentItalic((prev) => !prev);
+      }
+    }
+  };
 
   const handleFontSize = (size: number) => {
     setFontSizeOpen(false);
@@ -460,59 +479,40 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
   );
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-0.5 px-3 py-1.5 flex-shrink-0"
-      style={{
-        background: "var(--bg-panel)",
-        borderBottom: "1px solid var(--border-subtle)",
-      }}
-    >
+    <ToolbarContainer>
       {/* ── Undo ── */}
-      <button
-        onClick={onUndo}
-        className="tool-btn"
-        title={t("undo", lang) + " Ctrl+Z"}
-      >
+      <ToolbarButton onClick={onUndo} title={t("undo", lang) + " Ctrl+Z"}>
         {UndoIcon}
-      </button>
+      </ToolbarButton>
 
       {/* ── Redo ── */}
-      <button
-        onClick={onRedo}
-        className="tool-btn"
-        title={t("redo", lang) + " Ctrl+Y"}
-      >
+      <ToolbarButton onClick={onRedo} title={t("redo", lang) + " Ctrl+Y"}>
         {RedoIcon}
-      </button>
+      </ToolbarButton>
 
-      <div className="divider" />
+      <ToolbarDivider />
 
       {/* ── Font size dropdown ── */}
       <div>
-        <button
+        <ToolbarButton
           ref={fontSizeBtnRef}
           onClick={(e) => {
             e.stopPropagation();
             closeOthers("fontSize");
             setFontSizeOpen((prev) => !prev);
           }}
-          className="tool-btn"
           title={t("fontSize", lang)}
         >
           <span style={{ fontSize: 11, minWidth: 28, textAlign: "center" }}>
             {t("fontSize", lang)}
           </span>
           <svg
-            width="8"
-            height="8"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+            width="8" height="8" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="2"
           >
             <polyline points="6 9 12 15 18 9" />
           </svg>
-        </button>
+        </ToolbarButton>
         <DropPanel triggerRef={fontSizeBtnRef} open={fontSizeOpen}>
           <div style={{ minWidth: 56, maxHeight: 220, overflowY: "auto" }}>
             {FONT_SIZES.map((size) => (
@@ -534,50 +534,49 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
         </DropPanel>
       </div>
 
-      <div className="divider" />
+      <ToolbarDivider />
 
       {/* ── Bold ── */}
-      <button
+      <ToolbarButton
         onClick={handleBold}
-        className={`tool-btn${currentBold ? " active" : ""}`}
+        active={currentBold}
         title={t("bold", lang) + " Ctrl+B"}
+        style={{ minWidth: 30, fontWeight: 700, fontSize: 13, justifyContent: "center" }}
       >
-        <span style={{ fontWeight: 700, fontSize: 13 }}>B</span>
-      </button>
+        B
+      </ToolbarButton>
 
       {/* ── Italic ── */}
-      <button
+      <ToolbarButton
         onClick={handleItalic}
-        className={`tool-btn${currentItalic ? " active" : ""}`}
+        active={currentItalic}
         title={t("italic", lang) + " Ctrl+I"}
+        style={{ minWidth: 30, fontStyle: "italic", fontSize: 13, justifyContent: "center" }}
       >
-        <span style={{ fontStyle: "italic", fontSize: 13 }}>I</span>
-      </button>
+        I
+      </ToolbarButton>
 
       {/* ── Underline ── */}
-      <button className="tool-btn" title={t("underline", lang) + " Ctrl+U"}>
-        <span style={{ textDecoration: "underline", fontSize: 13 }}>U</span>
-      </button>
+      <ToolbarButton
+        title={t("underline", lang) + " Ctrl+U"}
+        style={{ minWidth: 30, textDecoration: "underline", fontSize: 13, justifyContent: "center" }}
+      >
+        U
+      </ToolbarButton>
 
-      <div className="divider" />
+      <ToolbarDivider />
 
       {/* ── Font color ── */}
       <div>
-        <button
+        <ToolbarButton
           ref={fontColorBtnRef}
           onClick={(e) => {
             e.stopPropagation();
             closeOthers("fontColor");
             setFontColorOpen((prev) => !prev);
           }}
-          className="tool-btn"
           title={t("fontColor", lang)}
-          style={{
-            flexDirection: "column",
-            gap: 0,
-            padding: "3px 7px",
-            minWidth: 26,
-          }}
+          style={{ flexDirection: "column", gap: 0, padding: "3px 7px", minWidth: 26 }}
         >
           {/* "A" letter in current font color */}
           <span
@@ -601,7 +600,7 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
               marginTop: 2,
             }}
           />
-        </button>
+        </ToolbarButton>
         <DropPanel triggerRef={fontColorBtnRef} open={fontColorOpen} panelRef={fontColorPanelRef}>
           {renderColorGrid(
             currentFontColor,
@@ -614,21 +613,15 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
 
       {/* ── Background color ── */}
       <div>
-        <button
+        <ToolbarButton
           ref={bgColorBtnRef}
           onClick={(e) => {
             e.stopPropagation();
             closeOthers("bgColor");
             setBgColorOpen((prev) => !prev);
           }}
-          className="tool-btn"
           title={t("bgColor", lang)}
-          style={{
-            flexDirection: "column",
-            gap: 0,
-            padding: "3px 7px",
-            minWidth: 26,
-          }}
+          style={{ flexDirection: "column", gap: 0, padding: "3px 7px", minWidth: 26 }}
         >
           {/* Paint bucket icon */}
           <svg
@@ -664,7 +657,7 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
                   : "none",
             }}
           />
-        </button>
+        </ToolbarButton>
         <DropPanel triggerRef={bgColorBtnRef} open={bgColorOpen} panelRef={bgColorPanelRef}>
           {renderColorGrid(
             currentBgColor,
@@ -810,7 +803,7 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
           }}
         />
       )}
-    </div>
+    </ToolbarContainer>
   );
 }
 

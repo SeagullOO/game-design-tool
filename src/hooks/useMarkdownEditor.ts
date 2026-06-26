@@ -56,6 +56,9 @@ export function useMarkdownEditor(
   const fileCache = useRef<Record<string, string>>({});
   /** 最近一次成功保存的内容：用于判断 source 是否有未保存的变更 */
   const lastSaved = useRef("");
+  /** 当前文件 ref：确保异步保存时始终使用最新文件信息 */
+  const currentFileRef = useRef(currentFile);
+  currentFileRef.current = currentFile;
 
   /**
    * 加载文件内容（切换文件时触发）
@@ -138,22 +141,25 @@ export function useMarkdownEditor(
    *
    * 由 Ctrl+S 键盘快捷键或 File 菜单触发。
    * 逻辑与自动保存相同，但不经过 setTimeout。
+   * 使用 currentFileRef 确保始终保存当前文件，避免闭包过期。
    */
   const handleForceSave = useCallback(async () => {
-    if (!currentFile || currentFile.type !== "md" || !folderId) return;
+    const file = currentFileRef.current;
+    if (!file || file.type !== "md" || !folderId) return;
     const text = source;
-    const fileId = currentFile.id;
+    const fileId = file.id;
+    const fileName = file.name;
     setSaveStatus("saving");
     try {
       if (folderName && (window as any).electronAPI) {
-        await storageWriteWorkspaceFile(folderName, currentFile.name, text);
+        await storageWriteWorkspaceFile(folderName, fileName, text);
       } else {
         const f = await storageGetFolder(folderId);
         if (!f) return;
-        const files = f.files.map((file) =>
-          file.id === fileId
-            ? { ...file, content: text, updatedAt: Date.now() }
-            : file,
+        const files = f.files.map((f) =>
+          f.id === fileId
+            ? { ...f, content: text, updatedAt: Date.now() }
+            : f,
         );
         await storageUpdateFolder(folderId, { files, updatedAt: Date.now() });
       }
@@ -163,7 +169,7 @@ export function useMarkdownEditor(
     } catch {
       setSaveStatus("unsaved");
     }
-  }, [source, currentFile, folderId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [source, folderId, folderName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { source, setSource, handleForceSave, editorRef };
 }

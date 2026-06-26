@@ -1,13 +1,15 @@
 /**
  * exportUtils.ts — 工作区导出工具
  *
- * 将整个工作区（包含 Markdown 和 Excel 文件）导出为本地文件。
+ * 将整个工作区（包含 Markdown、Word 和 Excel 文件）导出为本地文件。
  *
  * 导出流程：
  * 1. 遍历文件夹中的所有文件
  * 2. Markdown 文件：将 TipTap JSON 转为标准 Markdown 格式，
  *    处理 fileLink（文件引用）和 spreadsheetBlock（嵌入表格）等特殊节点，
  *    嵌入的表格导出为独立的 CSV 文件
+ * 3. Word 文档：HTML → @turbodocx/html-to-docx → .docx 二进制导出
+ * 4. Excel 表格：data → exceljs → .xlsx 二进制导出（保留样式）
  * 3. Excel 文件：导出为真正的 .xlsx 文件（保留颜色/粗体/斜体/字号）
  * 4. 使用 storageExportFiles 统一导出（Electron: 原生文件对话框; 浏览器: Blob 下载）
  *
@@ -18,6 +20,7 @@
 import type { Folder, FolderFile } from "../types";
 import { storageExportFiles } from "../storage";
 import { dataToXlsxBase64 } from "./xlsxUtils";
+import { htmlToDocxBase64 } from "./docxUtils";
 
 /** TipTap/ProseMirror 节点结构（导出转换时使用） */
 interface TipTapNode {
@@ -230,6 +233,7 @@ function tipTapJsonToMarkdown(doc: TipTapNode, files?: FolderFile[]): string {
  *
  * 为每个文件生成可发布的格式：
  * - .md 文件保持原样（包含嵌入表格的引用说明）
+ * - .docx 文件生成真正的 .docx 二进制文件
  * - Excel 文件生成真实的 .xlsx 文件（保留样式）
  *
  * @param folder 要导出的文件夹对象
@@ -243,6 +247,7 @@ export async function exportFolder(folder: Folder): Promise<string> {
 
   for (const file of folder.files) {
     if (file.type === "md") {
+      // Markdown 文件导出为 .md
       const md = tipTapJsonToMarkdown(file.content as TipTapNode, folder.files);
       fileContents.push({ name: file.name, content: md });
 
@@ -253,6 +258,11 @@ export async function exportFolder(folder: Folder): Promise<string> {
         const csvName = `${baseName}_表格_${i + 1}.csv`;
         fileContents.push({ name: csvName, content: toCsv(sheet.data) });
       }
+    } else if (file.type === "docx") {
+      // Word 文档：HTML → .docx 二进制 → 导出为真正的 .docx 文件
+      const htmlContent = typeof file.content === "string" ? file.content : "<p></p>";
+      const docxBase64 = await htmlToDocxBase64(htmlContent);
+      fileContents.push({ name: file.name, content: docxBase64, encoding: "base64" });
     } else if (file.type === "excel") {
       const excelData = file.content?.data as string[][] | undefined;
       const colHeaders = file.content?.colHeaders as string[] | undefined;
