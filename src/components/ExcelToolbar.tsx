@@ -217,6 +217,23 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
       const sel = hot.getSelected();
       if (sel && sel.length > 0) {
         applyToSelection("_underline", (cur: boolean) => !cur);
+        // Append "text-decoration: underline" as inline style via the cell renderer path:
+        // Handsontable cell meta alone does not apply decoration; the renderer
+        // reads _underline and sets td.style.textDecoration.
+        for (const range of sel) {
+          const [r1, c1, r2, c2] = range;
+          for (let r = r1; r <= r2; r++) {
+            for (let c = c1; c <= c2; c++) {
+              if (r < 0 || c < 0) continue;
+              const meta = hot.getCellMeta(r, c);
+              const next = !meta._underline;
+              hot.setCellMeta(r, c, "_underline", next);
+              (window as any).__recordFmt?.(r, c, "_underline", next);
+            }
+          }
+        }
+        hot.render();
+        (window as any).__triggerExcelSave?.();
       }
     }
   };

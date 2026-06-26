@@ -195,6 +195,9 @@ export function useExcelEditor(currentFile: FolderFile | null, folderId: number 
         const meta = instance.getCellMeta(row, col);
         if (meta._bold !== undefined) td.style.fontWeight = meta._bold ? "bold" : "";
         if (meta._italic !== undefined) td.style.fontStyle = meta._italic ? "italic" : "";
+        if (meta._underline !== undefined) {
+          td.style.textDecoration = meta._underline ? "underline" : "none";
+        }
         if (meta._fontSize !== undefined) td.style.fontSize = meta._fontSize ? meta._fontSize + "px" : "";
         if (meta._color) td.style.color = meta._color; else td.style.color = "";
         if (meta._bgColor) { td.style.backgroundColor = meta._bgColor; } else { td.style.backgroundColor = ""; }
