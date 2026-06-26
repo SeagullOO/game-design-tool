@@ -4,7 +4,7 @@
 - React 18 + Vite 5 + TypeScript
 - Tailwind CSS 3 + Obsidian 暗黑主题 CSS 变量
 - Dexie.js (IndexedDB) / Electron fs
-- TipTap 2.x 富文本 + Handsontable 14.6.2 CDN 表格
+- Monaco Editor 0.55 用于 Markdown 编辑 + TipTap 3.x 用于 DOCX WYSIWYG 编辑
 - Electron 42 + electron-builder
 
 ## 关键命令
@@ -19,13 +19,14 @@
 - 亮色: :root.light 切换
 
 ## 代码规范
-- 文件夹: src/pages/ src/components/ src/hooks/ src/extensions/
+- 文件夹: src/pages/ src/components/ src/hooks/ src/extensions/ src/styles/
+- 样式模块: src/styles/ 下的 CSS 模块按组件/功能拆分
 - TypeScript strict 模式
 - 组件优先 CSS 变量，不用 Tailwind 硬编码色值
 - 新功能必须通过浏览器实测，不只看代码
 
 ## 已知陷阱
-- Handsontable CDN CSS 优先级高于 index.css → 必须 index.html <style> 覆盖
+- Handsontable 样式覆盖位于 src/styles/handsontable.css → 覆盖 CDN CSS
 - CC 会在 td/th 加 !important → 审查时 git diff 检查并移除
 - FolderWorkspace 878 行 → 新功能不要继续往里塞
 - 亮色模式切换: document.documentElement.classList.toggle("light")
