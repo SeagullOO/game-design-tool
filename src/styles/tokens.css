@@ -1,0 +1,131 @@
+/**
+ * @file tokens.css
+ * @description Design tokens — CSS 变量体系（Nord Blue 暗色/亮色），根容器，focus outlines
+ */
+
+/* ============================================================
+   Design Tokens — Nord Blue dark palette
+   Reference: design-sketches/index.html
+   ============================================================ */
+
+:root {
+  /* -- Color-base palette -- */
+  --color-base-00: #181818;
+  --color-base-20: #1F1F1F;
+  --color-base-25: #212121;
+  --color-base-30: #2a2a2a;
+  --color-base-50: #666666;
+  --color-base-60: #A5A5A5;
+  --color-base-100: #D5D5D5;
+  --color-purple: #a882ff;
+
+  /* -- Semantic tokens -- */
+  --bg-darkest: #181818;
+  --bg-root: #181818;
+  --bg-panel: #1F1F1F;
+  --bg-surface: #212121;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.10);
+  --bg-selected: rgba(168, 130, 255, 0.42);
+  --text-primary: #D5D5D5;
+  --text-secondary: #A5A5A5;
+  --text-tertiary: #666666;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.14);
+  --accent: #a882ff;
+  --accent-hover: #b99aff;
+  --accent-bg: rgba(168, 130, 255, 0.25);
+  --accent-text: #a882ff;
+  --success: #a882ff;
+  --success-bg: rgba(168, 130, 255, 0.22);
+  --danger: #e5484d;
+  --danger-bg: rgba(229, 72, 77, 0.12);
+  --warning: #e5a023;
+  --warning-bg: rgba(229, 160, 35, 0.12);
+
+  /* -- Radii -- */
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --radius: 4px;
+
+  /* -- Modifier backbone -- */
+  --background-modifier-border: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================
+   Design Tokens — Light Mode
+   ============================================================ */
+
+:root.light {
+  /* -- Color-base palette (light) -- */
+  --color-base-00: #ffffff;
+  --color-base-20: #f5f5f5;
+  --color-base-25: #fafafa;
+  --color-base-30: #f0f0f0;
+  --color-base-50: #7c7c7c;
+  --color-base-60: #5c5c5c;
+  --color-base-100: #222222;
+  --color-purple: #a882ff;
+
+  /* -- Semantic tokens (light) -- */
+  --bg-darkest: #f0f0f0;
+  --bg-root: #ffffff;
+  --bg-panel: #f5f5f5;
+  --bg-surface: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.07);
+  --bg-selected: rgba(168, 130, 255, 0.34);
+  --text-primary: #222222;
+  --text-secondary: #5c5c5c;
+  --text-tertiary: #7c7c7c;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-medium: rgba(0, 0, 0, 0.14);
+  --accent: #a882ff;
+  --accent-hover: #8b5cf6;
+  --accent-bg: rgba(168, 130, 255, 0.20);
+  --accent-text: #8b5cf6;
+  --danger: #d32f2f;
+  --danger-bg: rgba(211, 47, 47, 0.08);
+  --warning: #d97706;
+  --warning-bg: rgba(217, 119, 6, 0.08);
+  --success: #a882ff;
+  --success-bg: rgba(168, 130, 255, 0.16);
+
+  /* -- Radii -- */
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --radius: 4px;
+
+  /* -- Modifier backbone -- */
+  --background-modifier-border: rgba(0, 0, 0, 0.08);
+}
+
+/* ---- Remove yellow focus outlines ---- */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: none !important;
+}
+
+/* ---- Root container ---- */
+html, body, #root {
+  margin: 0;
+  overflow: hidden;
+  height: 100%;
+}
+html {
+  background: var(--bg-darkest);
+}
+body {
+  background: var(--bg-darkest);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+    'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
