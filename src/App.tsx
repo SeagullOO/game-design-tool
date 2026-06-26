@@ -34,7 +34,7 @@ import { useState, useEffect, Component } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import FolderWorkspace from "./pages/FolderWorkspace";
 import TemplateManager from "./components/TemplateManager";
-import { ZOOM_MIN, ZOOM_MAX, ZOOM_DEFAULT, ZOOM_REFERENCE, CONTENT_ZOOM_MIN, CONTENT_ZOOM_MAX, CONTENT_ZOOM_DEFAULT } from "./config";
+import { ZOOM_MIN, ZOOM_MAX, ZOOM_DEFAULT, ZOOM_REFERENCE, CONTENT_ZOOM_MIN, CONTENT_ZOOM_MAX, CONTENT_ZOOM_DEFAULT, MD_FONT_DEFAULT } from "./config";
 import Settings from "./pages/Settings";
 import TitleBar from "./components/TitleBar";
 import GlobalSearchModal from "./components/GlobalSearchModal";
@@ -116,6 +116,17 @@ function App() {
   const [zoom, setZoom] = useState(ZOOM_DEFAULT);
   /** 内容缩放（仅影响编辑区域），默认 100% */
   const [contentZoom, setContentZoom] = useState(100);
+  /** Markdown 编辑器字体，从 localStorage 读取，默认 MD_FONT_DEFAULT */
+  const [mdFontFamily, setMdFontFamily] = useState<string>(() => {
+    try {
+      const raw = localStorage.getItem("gull_settings");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.mdFontFamily === "string" && parsed.mdFontFamily) return parsed.mdFontFamily;
+      }
+    } catch {}
+    return MD_FONT_DEFAULT;
+  });
   /** 当前界面语言，切换时通过 key 强制重渲染整个应用 */
   const [lang, setLangState] = useState(getLang);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -176,10 +187,12 @@ function App() {
     };
     (window as any).__applyLang = (l: string) => { setLang(l); setLangState(l as "zh" | "en"); };
     (window as any).__openTemplateManager = () => setTemplateManagerOpen(true);
+    (window as any).__applyMdFont = (f: string) => setMdFontFamily(f);
     return () => {
       (window as any).__applyZoom = undefined;
       (window as any).__applyLang = undefined;
       (window as any).__openTemplateManager = undefined;
+      (window as any).__applyMdFont = undefined;
     };
   }, []);
 
@@ -198,6 +211,7 @@ function App() {
         sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}
         globalSearchOpen={globalSearchOpen} setGlobalSearchOpen={setGlobalSearchOpen}
         zoom={zoom} contentZoom={contentZoom} setZoom={setZoom} setContentZoom={setContentZoom}
+        mdFontFamily={mdFontFamily}
         settingsOpen={settingsOpen}
         onOpenSettings={handleOpenSettings}
         onCloseSettings={handleCloseSettings}
@@ -218,6 +232,7 @@ function AppContent({
   sidebarOpen, setSidebarOpen,
   globalSearchOpen, setGlobalSearchOpen,
   zoom, contentZoom, setZoom, setContentZoom,
+  mdFontFamily,
   settingsOpen, onOpenSettings, onCloseSettings,
   templateManagerOpen, onCloseTemplateManager,
 }: {
@@ -229,6 +244,7 @@ function AppContent({
   contentZoom: number;
   setZoom: React.Dispatch<React.SetStateAction<number>>;
   setContentZoom: React.Dispatch<React.SetStateAction<number>>;
+  mdFontFamily: string;
   settingsOpen: boolean;
   onOpenSettings: () => void;
   onCloseSettings: () => void;
@@ -248,8 +264,8 @@ function AppContent({
           <GlobalSearchModal open={globalSearchOpen} onClose={() => setGlobalSearchOpen(false)} />
           <div className="flex-1 relative" style={{ overflow: "hidden" }}>
             <Routes>
-              <Route path="/" element={<FolderWorkspace sidebarOpen={sidebarOpen} zoom={zoom} contentZoom={contentZoom} setZoom={setZoom} setContentZoom={setContentZoom} />} />
-              <Route path="/folder/:id" element={<FolderWorkspace sidebarOpen={sidebarOpen} zoom={zoom} contentZoom={contentZoom} setZoom={setZoom} setContentZoom={setContentZoom} />} />
+              <Route path="/" element={<FolderWorkspace sidebarOpen={sidebarOpen} zoom={zoom} contentZoom={contentZoom} setZoom={setZoom} setContentZoom={setContentZoom} mdFontFamily={mdFontFamily} />} />
+              <Route path="/folder/:id" element={<FolderWorkspace sidebarOpen={sidebarOpen} zoom={zoom} contentZoom={contentZoom} setZoom={setZoom} setContentZoom={setContentZoom} mdFontFamily={mdFontFamily} />} />
 
             </Routes>
           </div>

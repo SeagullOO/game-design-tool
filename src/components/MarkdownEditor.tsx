@@ -146,6 +146,31 @@ function MarkdownEditor({ source, onSourceChange, editorRef, isPreviewMode, onTo
     [editorRef, syncEditorToPreview, fontStack],
   );
 
+  // 字体变更时动态更新 Monaco 编辑器（无需重新挂载）
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.updateOptions({ fontFamily: fontStack });
+    // 更新之前注入的 <style> 标签，否则 !important 会覆盖 updateOptions
+    const existing = editor.getDomNode()?.querySelector("style[data-gull-mfont]") as HTMLStyleElement | null;
+    if (existing) {
+      existing.textContent =
+        `.monaco-editor .view-lines,` +
+        `.monaco-editor .view-lines * {` +
+        `  font-family: ${fontStack} !important;` +
+        `}`;
+    } else {
+      const style = document.createElement("style");
+      style.setAttribute("data-gull-mfont", "");
+      style.textContent =
+        `.monaco-editor .view-lines,` +
+        `.monaco-editor .view-lines * {` +
+        `  font-family: ${fontStack} !important;` +
+        `}`;
+      editor.getDomNode()?.querySelector(".monaco-editor")?.appendChild(style);
+    }
+  }, [fontStack, editorRef]);
+
   // ── Marked config ─────────────────────────────────────────────────────
 
   useEffect(() => {
