@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Zoom
   setZoomFactor: (factor) => ipcRenderer.invoke("zoom:setFactor", factor),
 
+  // Font
+  getSystemFonts: () => ipcRenderer.invoke("font:getSystemFonts"),
+
   // Window controls
   windowClose: () => ipcRenderer.send("window-close"),
   windowMinimize: () => ipcRenderer.send("window-minimize"),

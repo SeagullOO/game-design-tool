@@ -35,6 +35,7 @@ declare global {
       downloadUpdate: () => Promise<{ success?: boolean; error?: string }>;
       installUpdate: () => void;
       onUpdateStatus: (cb: (status: string, data?: any) => void) => () => void;
+      getSystemFonts: () => Promise<string[]>;
     };
   }
 }
