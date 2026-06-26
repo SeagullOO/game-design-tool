@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
-import { hexToHsv, hsvToHex } from "../utils/colorUtils";
 import { t, getLang } from "../i18n";
-import { KEYBINDINGS } from "../config";
 import { ToolbarContainer, ToolbarButton, ToolbarDivider } from "./Toolbar";
 import { pushMetaUndo, type MetaCellSnapshot } from "../hooks/useMetaUndo";
+import DropPanel from "./DropPanel";
+import CustomColorPicker from "./CustomColorPicker";
 
 /**
  * ExcelToolbar — Handsontable 电子表格格式工具栏
@@ -15,10 +14,11 @@ import { pushMetaUndo, type MetaCellSnapshot } from "../hooks/useMetaUndo";
  *
  * 【视觉布局】flex 水平行（flex-wrap，gap: 0.5），px-3 py-1.5（约 36px 高度）。
  *           按钮分组：撤销重做 | 分隔 | 字号下拉 | 分隔 | B I U | 分隔 | 字体颜色 | 背景颜色。
- *           所有弹出面板通过 DropPanel + createPortal 渲染到 document.body，
+ *           所有弹出面板通过 DropPanel (Portal 组件) 渲染到 document.body，
  *           确保不受 workspace zoom 容器（transform: scale）的影响。
  *
  * 【架构 - DropPanel（通用 Portal 弹出面板）】
+ *   - 独立组件 src/components/DropPanel.tsx
  *   - 根据 triggerRef 的 getBoundingClientRect() 动态计算 fixed 定位
  *   - 偏移: top = rect.bottom + 4px, left = rect.left
  *   - z-index: 99999，确保在所有 UI 层之上
@@ -28,17 +28,17 @@ import { pushMetaUndo, type MetaCellSnapshot } from "../hooks/useMetaUndo";
  *   - 主题色 THEME_COLORS: 2 行 x 7 列
  *   - 标准色 STANDARD_COLORS: 2 行 x 7 列
  *   - 最近使用 recentColors: 1 行 x 7 列（不含选中标记）
- *   - 底部"更多颜色"按钮 → 打开 HSV 自定义取色器
+ *   - 底部"更多颜色"按钮 → 打开 CustomColorPicker 组件
  *   - 每个色块 18x18px，hover 放大 scale(1.12)，选中状态蓝色边框 + 白色勾号
  *   - 白色色块 (#FFFFFF) 特殊处理：灰色边框避免在白色背景上"隐形"
  *
- * 【架构 - 自定义 HSV 取色器】
+ * 【架构 - CustomColorPicker（HSV 自定义取色器）】
+ *   - 独立组件 src/components/CustomColorPicker.tsx
  *   - 色谱条 (Hue): 水平渐变（hsl 0→360），可拖拽选择色相
- *   - SV 面板 (Saturation/Value): 双渐变（上黑下白 + 左白右色相色），可拖拽选择饱和度和亮度
+ *   - SV 面板 (Saturation/Value): 双渐变，可拖拽选择饱和度和亮度
  *   - HEX 输入框 + 颜色预览 + 应用按钮
- *   - 拖拽通过 ref 绕过闭包陷阱：hsvRef 存储当前值，draggingRef 标记拖拽模式
- *   - 拖拽事件绑定在 document 上（mousemove/mouseup），避免在小面板上丢失鼠标事件
- *   - 面板关闭：透明遮罩层 (inset 0, zIndex: 99999) 捕获外部点击
+ *   - 拖拽通过 ref 绕过闭包陷阱，document 级事件绑定
+ *   - 面板关闭：透明遮罩层捕获外部点击
  *
  * 【架构 - applyToSelection（格式应用）】
  *   - 先通过 pushMetaUndo 保存当前选区所有单元格的 meta 快照（支持撤销）
@@ -50,17 +50,7 @@ import { pushMetaUndo, type MetaCellSnapshot } from "../hooks/useMetaUndo";
  *   - onUndo/onRedo → 父组件 (FolderWorkspace) → useMetaUndo hook
  *   - 颜色选择 → handleFontColor/handleBgColor → pushRecent(hex) 更新最近使用
  *   - DropPanel click-away → mousedown document handler 关闭（排除自定义颜色子面板）
- *   - 自定义颜色子面板: 独立 click-away 遮罩 + data-color-panel 标记排除
- *
- * 【设计决策 - Portal 的必要性】
- *   按钮位于 workspace zoom 容器内，该容器应用了 transform: scale() 缩放。
- *   若在容器内渲染弹出面板，面板会被一起缩放。通过 Portal 挂载到 body 后，
- *   面板使用 fixed 定位基于 viewport 计算，完全不受缩放影响。
- *
- * 【设计决策 - 拖拽用 ref 而非 state】
- *   自定义取色器的拖拽操作非常高频（每像素级 mousemove），
- *   使用 useState 会导致每次移动都触发重渲染，产生严重卡顿。
- *   改用 useRef + 直接 setState 仅在 mouseup 时触发最终渲染。
+ *   - CustomColorPicker: 独立 click-away 遮罩 + data-color-panel 标记排除
  */
 interface ExcelToolbarProps {
   hot: any;
@@ -95,63 +85,18 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
   const [currentBgColor, setCurrentBgColor] = useState("transparent");
   const [currentBold, setCurrentBold] = useState(false);
   const [currentItalic, setCurrentItalic] = useState(false);
-  const [customColorType, setCustomColorType] = useState<"font" | "bg" | null>(null);
-  const [customColorPanelRect, setCustomColorPanelRect] = useState<DOMRect | null>(null);
-  const [customPanelOpen, setCustomPanelOpen] = useState(false);
   const [recentColors, setRecentColors] = useState<string[]>([
     "#3370FF", "#F54A45", "#34C724", "#FAD355", "#7F3BF5", "#00D6B9", "#4E83FD",
   ]);
-  // Custom color sub-panel state
-  const [customHue, setCustomHue] = useState(220);
-  const [customSat, setCustomSat] = useState(0.85);
-  const [customBri, setCustomBri] = useState(0.85);
-  const [customHex, setCustomHex] = useState("#3370FF");
-  // 拖拽模式标记：null = 不在拖拽, "hue" = 拖拽色谱条, "sv" = 拖拽 SV 面板
-  const draggingRef = useRef<"hue" | "sv" | null>(null);
-  const spectrumRef = useRef<HTMLDivElement>(null);
-  const svPanelRef = useRef<HTMLDivElement>(null);
-  // 拖拽期间的真实 HSV 值用 ref 存储，绕过 setState 的闭包陷阱
-  // 每次 mousedown 时同步 state → ref，mousemove 中读写 ref，mouseup 时 ref → state
-  const hsvRef = useRef({ h: 220, s: 0.85, v: 0.85 });
+  // CustomColorPicker control state
+  const [customPanelOpen, setCustomPanelOpen] = useState(false);
+  const [customColorType, setCustomColorType] = useState<"font" | "bg" | null>(null);
+  const [customColorPanelRect, setCustomColorPanelRect] = useState<DOMRect | null>(null);
+  const [customInitialHex, setCustomInitialHex] = useState("#3370FF");
 
-  // 自定义颜色面板的拖拽事件绑定在 document 上（而非面板元素本身）
-  // 原因：如果绑定在遮罩层（sibling div），mousemove 事件不会穿透到面板元素
-  // 绑定在 document 上确保无论鼠标在哪都能捕获移动事件
-  useEffect(() => {
-    if (!customPanelOpen) return;
-    const onMove = (e: MouseEvent) => {
-      if (!draggingRef.current) return;
-      if (draggingRef.current === "hue" && spectrumRef.current) {
-        const rect = spectrumRef.current.getBoundingClientRect();
-        const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        hsvRef.current.h = Math.round(x * 360);
-        setCustomHue(hsvRef.current.h);
-        setCustomHex(hsvToHex(hsvRef.current.h, hsvRef.current.s, hsvRef.current.v));
-      } else if (draggingRef.current === "sv" && svPanelRef.current) {
-        const rect = svPanelRef.current.getBoundingClientRect();
-        const sx = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        const sy = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-        hsvRef.current.s = sx;
-        hsvRef.current.v = 1 - sy;
-        setCustomSat(sx);
-        setCustomBri(1 - sy);
-        setCustomHex(hsvToHex(hsvRef.current.h, sx, 1 - sy));
-      }
-    };
-    const onUp = () => { draggingRef.current = null; };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    return () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-    // Only re-attach when panel opens/closes — refs bypass closure staleness
-  }, [customPanelOpen]);
-
-  // Close all dropdowns on outside click (but not when sub-panel is open)
+  // Close all dropdowns on outside click
   useEffect(() => {
     if (!fontSizeOpen && !fontColorOpen && !bgColorOpen) return;
-    if (customPanelOpen) return;
     const handler = (e: MouseEvent) => {
       // Don't close if clicking inside a portal dropdown or sub-panel
       const target = e.target as HTMLElement;
@@ -162,7 +107,7 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
     };
     window.addEventListener("mousedown", handler);
     return () => window.removeEventListener("mousedown", handler);
-  }, [fontSizeOpen, fontColorOpen, bgColorOpen, customPanelOpen]);
+  }, [fontSizeOpen, fontColorOpen, bgColorOpen]);
 
   // Track selection to update format indicators
   const updateFromSelection = useCallback(() => {
@@ -296,17 +241,14 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
     applyToSelection("_bgColor", undefined);
   };
 
-  // ── 自定义颜色取色器：色谱条 (Hue) + SV 面板 (Saturation/Value) ──
-  // 面板定位在触发面板的右侧 + 8px 偏移
+  // ── 自定义颜色取色器 —— 打开 CustomColorPicker ──
   const openCustomColor = (type: "font" | "bg", panelEl: HTMLElement) => {
+    const initHex = type === "font" ? currentFontColor : currentBgColor;
     setCustomColorType(type);
     setCustomColorPanelRect(panelEl.getBoundingClientRect());
-    const initHex = type === "font" ? currentFontColor : currentBgColor;
-    if (initHex && initHex !== "transparent" && initHex !== "#dadada") {
-      setCustomHex(initHex);
-      const { h, s, v } = hexToHsv(initHex);
-      setCustomHue(h); setCustomSat(s); setCustomBri(v);
-    }
+    setCustomInitialHex(
+      initHex && initHex !== "transparent" && initHex !== "#dadada" ? initHex : "#3370FF",
+    );
     setCustomPanelOpen(true);
   };
 
@@ -321,12 +263,15 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
       setCurrentBgColor(hex);
       applyToSelection("_bgColor", hex);
     }
+    setCustomPanelOpen(false);
+    setCustomColorType(null);
+    setCustomColorPanelRect(null);
   };
 
-  // Simulate hue from hex for spectrum updates
-  const updateCustomFromHsv = (h: number, s: number, v: number) => {
-    setCustomHue(h); setCustomSat(s); setCustomBri(v);
-    setCustomHex(hsvToHex(h, s, v));
+  const closeCustomColorPanel = () => {
+    setCustomPanelOpen(false);
+    setCustomColorType(null);
+    setCustomColorPanelRect(null);
   };
 
   const closeOthers = (which: "fontSize" | "fontColor" | "bgColor") => {
@@ -341,38 +286,6 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
   const bgColorBtnRef = useRef<HTMLButtonElement>(null);
   const fontColorPanelRef = useRef<HTMLDivElement>(null);
   const bgColorPanelRef = useRef<HTMLDivElement>(null);
-
-  // ── DropPanel：通用 Portal 弹出面板 ──
-  // 根据触发按钮的 viewport 位置动态计算 fixed 定位（top = 按钮底部 + 4px）
-  // 通过 createPortal 挂载到 document.body，逃离 workspace zoom 容器的 transform: scale() 影响
-  // data-color-panel 属性供 click-away handler 识别，避免误关闭
-  function DropPanel({ triggerRef, open, children, panelRef }: { triggerRef: React.RefObject<HTMLElement | null>; open: boolean; children: React.ReactNode; panelRef?: React.RefObject<HTMLDivElement | null> }) {
-    if (!open || !triggerRef.current) return null;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const top = rect.bottom + 4;
-    const left = rect.left;
-    return createPortal(
-      <div
-        ref={panelRef}
-        data-color-panel="true"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "fixed",
-          top,
-          left,
-          zIndex: 99999,
-          background: "var(--bg-surface)",
-          border: "1px solid var(--border-subtle)",
-          borderRadius: 8,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-          padding: "4px 0",
-        }}
-      >
-        {children}
-      </div>,
-      document.body,
-    );
-  }
 
   // ── 添加到最近使用颜色（去重 + 限制最大 7 个） ──
   const pushRecent = (hex: string) => {
@@ -668,141 +581,15 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
         </DropPanel>
       </div>
 
-      {/* ── Custom color sub-panel (design spec: spectrum + SV) ── */}
-      {customPanelOpen && customColorType && createPortal(
-        <div
-          data-color-panel="true"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "fixed", zIndex: 100000, width: 190,
-            background: "var(--bg-surface)", border: "1px solid var(--border-subtle)",
-            borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.5)", padding: "10px 10px 8px",
-          }}
-          ref={(el) => {
-            if (el && customColorPanelRect) {
-              el.style.top = customColorPanelRect.top + "px";
-              el.style.left = (customColorPanelRect.right + 8) + "px";
-            }
-          }}
-        >
-          {/* Spectrum bar */}
-          <div
-            ref={spectrumRef}
-            style={{
-              width: "100%", height: 22, borderRadius: 3, cursor: "crosshair",
-              position: "relative", border: "1px solid var(--border-subtle)", marginBottom: 6, marginTop: 2,
-              background: "linear-gradient(to right, hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%), hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%), hsl(360,100%,50%))",
-            }}
-            onMouseDown={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-              updateCustomFromHsv(Math.round(x * 360), customSat, customBri);
-              draggingRef.current = "hue";
-            }}
-          >
-            <div style={{
-              position: "absolute", top: "50%",
-              width: 14, height: 14,
-              left: `${(customHue / 360) * 100}%`,
-              transform: "translate(-50%, -50%)",
-              borderRadius: "50%",
-              border: "2px solid var(--bg-surface)",
-              boxShadow: "0 0 0 1.5px var(--text-primary), 0 1px 3px rgba(0,0,0,0.3)",
-              zIndex: 2, pointerEvents: "none",
-            }} />
-          </div>
-          {/* SV panel */}
-          <div
-            ref={svPanelRef}
-            style={{
-              width: "100%", height: 80, borderRadius: 3, cursor: "crosshair",
-              position: "relative", marginBottom: 6, overflow: "hidden",
-              background: `
-                linear-gradient(to top, #000 0%, transparent 100%),
-                linear-gradient(to right, #fff 0%, hsl(${customHue}, 100%, 50%) 100%)
-              `,
-            }}
-            onMouseDown={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-              const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-              updateCustomFromHsv(customHue, x, 1 - y);
-              draggingRef.current = "sv";
-            }}
-          >
-            <div style={{
-              position: "absolute", width: 10, height: 10,
-              border: "2px solid #fff", borderRadius: "50%",
-              left: `${customSat * 100}%`, top: `${(1 - customBri) * 100}%`,
-              transform: "translate(-50%, -50%)",
-              boxShadow: "0 0 0 1px rgba(0,0,0,0.2), 0 1px 4px rgba(0,0,0,0.3)",
-              pointerEvents: "none", zIndex: 2,
-            }} />
-          </div>
-          {/* Bottom row: hex input + apply */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, gap: 6 }}>
-            <input
-              value={customHex}
-              onChange={(e) => {
-                const v = e.target.value;
-                setCustomHex(v);
-                if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-                  const { h, s, v: bri } = hexToHsv(v.toUpperCase());
-                  setCustomHue(h); setCustomSat(s); setCustomBri(bri);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === KEYBINDINGS.confirm.key) {
-                  const v = customHex;
-                  if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-                    applyCustomColor(v.toUpperCase());
-                    setCustomPanelOpen(false); setCustomColorType(null); setCustomColorPanelRect(null);
-                  }
-                }
-              }}
-              onClick={(e) => e.stopPropagation()}
-              placeholder="#000000"
-              maxLength={7}
-              style={{
-                width: 72, fontSize: 11, fontFamily: "'Inter', -apple-system, sans-serif",
-                fontWeight: 500, color: "var(--text-primary)", background: "var(--bg-root)",
-                border: "1px solid var(--border-subtle)", borderRadius: 3,
-                padding: "2px 6px", outline: "none", letterSpacing: "0.03em",
-              }}
-            />
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <div style={{ width: 26, height: 26, borderRadius: 3, border: "1px solid var(--border-subtle)", background: customHex }} />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  applyCustomColor(customHex);
-                  setCustomPanelOpen(false);
-                  setCustomColorType(null);
-                  setCustomColorPanelRect(null);
-                }}
-                style={{
-                  padding: "3px 10px", fontSize: 11, borderRadius: 3, border: "1px solid var(--border-subtle)",
-                  background: "var(--bg-hover)", color: "var(--text-primary)", cursor: "pointer",
-                }}
-              >{t("apply", lang)}</button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
-      {/* Click-away overlay — close sub-panel */}
-      {customPanelOpen && (
-        <div
-          style={{ position: "fixed", inset: 0, zIndex: 99999 }}
-          onMouseDown={(e) => {
-            if (!(e.target as HTMLElement).closest("[data-color-panel]")) {
-              setCustomPanelOpen(false);
-              setCustomColorType(null);
-              setCustomColorPanelRect(null);
-            }
-          }}
-        />
-      )}
+      {/* ── CustomColorPicker 子面板 ── */}
+      <CustomColorPicker
+        open={customPanelOpen && customColorType !== null}
+        initialHex={customInitialHex}
+        panelRect={customColorPanelRect}
+        onApply={applyCustomColor}
+        onClose={closeCustomColorPanel}
+        lang={lang}
+      />
     </ToolbarContainer>
   );
 }
