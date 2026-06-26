@@ -46,6 +46,10 @@ export const PANEL_MAX_WIDTH = 480;
 export const SPLITTER_WIDTH = 1;
 export const SPLITTER_HIT = 20;
 
+/** Markdown 编辑/预览分隔线：视觉宽度 + 拖拽判定范围 */
+export const MD_SPLITTER_WIDTH = 2;
+export const MD_SPLITTER_HIT = 20;
+
 /** ActivityBar 宽度 */
 export const ACTIVITY_BAR_WIDTH = 48;
 
@@ -237,4 +241,7 @@ export const TOOLBAR_DIVIDER_MARGIN = "0 2px";
 
 /** 工作区右键菜单显示最近工作区数量 */
 export const RECENT_WORKSPACES_COUNT = 7;
+
+/** Markdown 编辑器默认字体 */
+export const MD_FONT_DEFAULT = "Maple Mono NF CN";
 
