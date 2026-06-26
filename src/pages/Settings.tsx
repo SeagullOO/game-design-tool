@@ -15,7 +15,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import { t, getLang, setLang } from "../i18n";
 import type { Lang } from "../i18n";
-import { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, ZOOM_DEFAULT } from "../config";
+import { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, ZOOM_DEFAULT, MD_FONT_DEFAULT } from "../config";
 import PanelLayout from "../components/PanelLayout";
 import { SettingsGearIcon, MonitorIcon, StorageCubeIcon, InfoCircleIcon } from "../components/icons";
 
@@ -24,6 +24,7 @@ const STORAGE_KEY = "gull_settings";
 interface SettingsData {
   theme: "dark" | "light" | "system";
   zoom: number;
+  mdFontFamily: string;
 }
 
 function loadSettings(): SettingsData {
@@ -34,10 +35,11 @@ function loadSettings(): SettingsData {
       return {
         theme: ["dark", "light", "system"].includes(parsed.theme) ? parsed.theme : "dark",
         zoom: typeof parsed.zoom === "number" && parsed.zoom >= ZOOM_MIN && parsed.zoom <= ZOOM_MAX ? parsed.zoom : ZOOM_DEFAULT,
+        mdFontFamily: typeof parsed.mdFontFamily === "string" && parsed.mdFontFamily ? parsed.mdFontFamily : MD_FONT_DEFAULT,
       };
     }
   } catch {}
-  return { theme: "dark", zoom: ZOOM_DEFAULT };
+  return { theme: "dark", zoom: ZOOM_DEFAULT, mdFontFamily: MD_FONT_DEFAULT };
 }
 
 function saveSettings(s: SettingsData): void {
@@ -127,6 +129,8 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
     }
   }, []);
   const [lang, setLangState] = useState<Lang>(getLang);
+  const [fontList, setFontList] = useState<string[]>([]);
+  const [fontListLoading, setFontListLoading] = useState(false);
   const isElectron = typeof window !== "undefined" && "electronAPI" in window;
   const api = (window as any).electronAPI;
 
@@ -187,6 +191,24 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
   }, []);
 
   useEffect(() => { applyThemeClass(settings.theme); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 打开外观标签页时加载系统字体列表
+  useEffect(() => {
+    if (activeNav !== "stgAppearance") return;
+    if (fontList.length > 0) return;
+    setFontListLoading(true);
+    const api = (window as any).electronAPI;
+    if (api?.getSystemFonts) {
+      api.getSystemFonts().then((fonts: string[]) => {
+        setFontList(fonts.filter((f: string) => f !== MD_FONT_DEFAULT));
+        setFontListLoading(false);
+      }).catch(() => {
+        setFontListLoading(false);
+      });
+    } else {
+      setFontListLoading(false);
+    }
+  }, [activeNav, fontList.length]);
 
   /** 切换语言：更新模块级状态 + 强制整个应用重渲染 */
   const switchLang = useCallback((l: Lang) => {
@@ -279,6 +301,57 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
                         </button>
                       ))}
                     </div>
+                  </div>
+                </div>
+              </div>
+              {/* 编辑器字体 */}
+              <div className="stg-card">
+                <div className="stg-card-header">{t("stgEditorFont", lang)}</div>
+                <div className="stg-row">
+                  <div className="stg-info">
+                    <div className="stg-label">{t("stgFontFamily", lang)}</div>
+                    <div className="stg-hint">{t("stgFontFamilyDesc", lang)}</div>
+                  </div>
+                  <div className="stg-control">
+                    <div className="stg-select-wrap">
+                      <select
+                        value={settings.mdFontFamily}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const next = { ...settings, mdFontFamily: v };
+                          setSettings(next);
+                          saveSettings(next);
+                          (window as any).__applyMdFont?.(v);
+                        }}
+                      >
+                        <option value={MD_FONT_DEFAULT}>
+                          {MD_FONT_DEFAULT} ({t("stgDefault", lang)})
+                        </option>
+                        {fontListLoading ? (
+                          <option disabled>{t("stgLoadingFonts", lang)}</option>
+                        ) : fontList.length === 0 ? (
+                          <option disabled>{t("stgNoFonts", lang)}</option>
+                        ) : (
+                          fontList.map((f) => (
+                            <option key={f} value={f}>{f}</option>
+                          ))
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                {/* 字体预览 */}
+                <div className="stg-row">
+                  <div
+                    style={{
+                      fontFamily: `${settings.mdFontFamily}, monospace`,
+                      fontSize: 14,
+                      color: "var(--text-primary)",
+                      padding: "8px 0",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {t("stgFontPreview", lang)}
                   </div>
                 </div>
               </div>
