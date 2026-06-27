@@ -10,9 +10,11 @@
  * 子组件只需提供 sidebar 和 children，布局和关闭逻辑由此组件统一管理。
  */
 
-import { useEffect } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { KEYBINDINGS, PANEL_LAYOUT_WIDTH, PANEL_LAYOUT_HEIGHT, PANEL_LAYOUT_MAX_WIDTH, PANEL_LAYOUT_MIN_WIDTH, PANEL_LAYOUT_MIN_HEIGHT, PANEL_BACKDROP } from "../config";
 import { t } from "../i18n";
+
+const ANIM_DURATION = 150; // ms
 
 export interface PanelLayoutProps {
   onClose: () => void;
@@ -48,17 +50,31 @@ function PanelLayout({
   backdrop = PANEL_BACKDROP,
   blur = 4,
 }: PanelLayoutProps) {
+  const [closing, setClosing] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const close = useCallback(() => {
+    setClosing(true);
+    timerRef.current = setTimeout(() => {
+      onClose();
+    }, ANIM_DURATION);
+  }, [onClose]);
+
+  // 清理定时器
+  useEffect(() => { return () => { if (timerRef.current) clearTimeout(timerRef.current); }; }, []);
+
   // Escape 关闭
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === KEYBINDINGS.closePanel.key) onClose();
+      if (e.key === KEYBINDINGS.closePanel.key) close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [close]);
 
   return (
     <div
+      className={closing ? "modal-overlay-out" : "modal-overlay-in"}
       style={{
         position: "fixed", inset: 0, zIndex: 1000,
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -68,23 +84,24 @@ function PanelLayout({
           WebkitBackdropFilter: `blur(${blur}px)`,
         } : {}),
       }}
-      onClick={onClose}
+      onClick={close}
     >
       <div
+        className={closing ? "animate-out" : "animate-in"}
         style={{
           display: "flex", width, height,
           maxWidth, minWidth, minHeight,
-          borderRadius: "var(--radius-m)", overflow: "hidden",
+          borderRadius: "12px", overflow: "hidden",
           background: "var(--stg-bg)",
-          border: "0px solid var(--border-medium)",
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3)",
+          border: "1px solid var(--border-subtle)",
+          boxShadow: "0 8px 48px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03), 0 2px 8px rgba(0, 0, 0, 0.15)",
           position: "relative",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
         <button
-          onClick={onClose}
+          onClick={close}
           style={{
             position: "absolute", top: 10, right: 10,
             width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center",

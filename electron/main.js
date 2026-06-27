@@ -18,6 +18,13 @@ const isDev = !__dirname.includes("app.asar");
 const distDir = path.join(__dirname, "..", "dist");
 let mainWindow = null;
 
+// ── App root — where config/ and data/ live ─────────────────────────────────
+// In packaged app: next to the exe. In dev: project root.
+function getAppRoot() {
+  if (!isDev) return path.dirname(process.execPath);
+  return path.join(__dirname, "..");
+}
+
 // ── Auto-updater 配置 ─────────────────────────────────────────────────────
 if (autoUpdater && !isDev) {
   autoUpdater.autoDownload = false;
@@ -46,8 +53,38 @@ if (autoUpdater) {
   });
 }
 
+// ── Migration: move old userData to app root structure ─────────────────────
+function migrateIfNeeded() {
+  const oldDataPath = path.join(app.getPath("userData"), "data");
+  const newDataPath = path.join(getAppRoot(), "data");
+  if (fs.existsSync(oldDataPath) && !fs.existsSync(newDataPath)) {
+    try {
+      fs.cpSync(oldDataPath, newDataPath, { recursive: true });
+    } catch {}
+  }
+  // Migrate storage-config
+  const oldConfig = path.join(app.getPath("userData"), "storage-config.json");
+  const newConfigDir = path.join(getAppRoot(), "config");
+  if (fs.existsSync(oldConfig) && !fs.existsSync(path.join(newConfigDir, "storage-config.json"))) {
+    try {
+      if (!fs.existsSync(newConfigDir)) fs.mkdirSync(newConfigDir, { recursive: true });
+      fs.copyFileSync(oldConfig, path.join(newConfigDir, "storage-config.json"));
+    } catch {}
+  }
+  // Migrate window state
+  const oldState = path.join(app.getPath("userData"), "window-state.json");
+  if (fs.existsSync(oldState) && !fs.existsSync(path.join(newConfigDir, "window-state.json"))) {
+    try {
+      if (!fs.existsSync(newConfigDir)) fs.mkdirSync(newConfigDir, { recursive: true });
+      fs.copyFileSync(oldState, path.join(newConfigDir, "window-state.json"));
+    } catch {}
+  }
+}
+
 function getStorageConfigPath() {
-  return path.join(app.getPath("userData"), "storage-config.json");
+  const configDir = path.join(getAppRoot(), "config");
+  if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
+  return path.join(configDir, "storage-config.json");
 }
 
 function getStorageConfig() {
@@ -60,13 +97,14 @@ function getStorageConfig() {
 
 function getDataPath() {
   const cfg = getStorageConfig();
-  const dataDir = cfg.customPath || path.join(app.getPath("userData"), "data");
+  const defaultDir = path.join(getAppRoot(), "data");
+  const dataDir = cfg.customPath || defaultDir;
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
   return dataDir;
 }
 
 // ── Window state persistence ───────────────────────────────────────────────
-const STATE_PATH = path.join(app.getPath("userData"), "window-state.json");
+const STATE_PATH = path.join(getAppRoot(), "config", "window-state.json");
 
 function loadWindowState() {
   try { return JSON.parse(fs.readFileSync(STATE_PATH, "utf-8")); }
@@ -75,6 +113,8 @@ function loadWindowState() {
 
 function saveWindowState(win) {
   try {
+    const dir = path.dirname(STATE_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const state = win.isMaximized()
       ? { isMaximized: true }
       : { ...win.getBounds(), isMaximized: false };
@@ -85,6 +125,9 @@ function saveWindowState(win) {
 function createWindow() {
   Menu.setApplicationMenu(null);
 
+  // Migrate data from old userData location to app root structure
+  migrateIfNeeded();
+
   const saved = loadWindowState();
   const opts = {
     width: 1400, height: 900,
@@ -92,7 +135,7 @@ function createWindow() {
     frame: false,
     show: false,                  // 等待 ready-to-show 再显示，避免白屏闪烁
     backgroundColor: "#181818",    // 暗色背景，防止窗口出现时闪白
-    title: "Gull",
+    title: "GullDoc",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -371,6 +414,170 @@ ipcMain.handle("font:getSystemFonts", async () => {
   return getSystemFonts();
 });
 
+// ── 自定义字体管理 ─────────────────────────────────────────────────────
+// 用户选择的字体文件存放在 data/fonts/ 目录
+// 格式：{ filename, displayName (从字体文件提取的 family name) }
+
+function getFontsDir() {
+  const d = path.join(getDataPath(), "fonts");
+  if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+  return d;
+}
+
+/**
+ * 从 TTF/OTF 字体文件中提取 family name
+ * 解析 name 表 (tag=name) 中的 Name ID 1 (Font Family)
+ * 支持 TTF (TrueType) 和 OTF (CFF/PostScript outline) 格式
+ */
+function extractFontFamily(filePath) {
+  try {
+    const buf = fs.readFileSync(filePath);
+    if (buf.length < 12) return null;
+
+    // Parse offset table (Big Endian)
+    const sfVersion = buf.readUInt16BE(0);
+    const numTables = buf.readUInt16BE(4);
+
+    // Find 'name' table
+    let nameOffset = null;
+    for (let i = 0; i < numTables; i++) {
+      const recordOff = 12 + i * 16;
+      if (recordOff + 16 > buf.length) return null;
+      const tag = buf.toString("ascii", recordOff, recordOff + 4);
+      if (tag === "name") {
+        nameOffset = {
+          offset: buf.readUInt32BE(recordOff + 8),
+          length: buf.readUInt32BE(recordOff + 12),
+        };
+        break;
+      }
+    }
+    if (!nameOffset) return null;
+
+    const nameStart = nameOffset.offset;
+    const nameEnd = nameStart + nameOffset.length;
+    if (nameEnd > buf.length) return null;
+
+    // Parse name table header
+    const format = buf.readUInt16BE(nameStart);
+    const count = buf.readUInt16BE(nameStart + 2);
+    const stringOffset = buf.readUInt16BE(nameStart + 4);
+
+    // Iterate name records to find Name ID 1 (Font Family)
+    let best = null;
+    for (let i = 0; i < count; i++) {
+      const recOff = nameStart + 6 + i * 12;
+      if (recOff + 12 > nameEnd) break;
+      const platformID = buf.readUInt16BE(recOff);
+      const encodingID = buf.readUInt16BE(recOff + 2);
+      const nameID = buf.readUInt16BE(recOff + 6);
+      const length = buf.readUInt16BE(recOff + 8);
+      const offset = buf.readUInt16BE(recOff + 10);
+
+      if (nameID !== 1) continue;
+
+      const strOff = nameStart + stringOffset + offset;
+      if (strOff + length > nameEnd) continue;
+
+      let family = null;
+      // Platform ID 3 (Windows), Encoding 1 (Unicode BMP) — UTF-16BE
+      if (platformID === 3 && encodingID === 1) {
+        const raw = buf.subarray(strOff, strOff + length);
+        // Swap byte pairs: UTF-16BE → UTF-16LE for Node.js utf16le
+        const swapped = Buffer.alloc(raw.length);
+        for (let j = 0; j + 1 < raw.length; j += 2) {
+          swapped[j] = raw[j + 1];
+          swapped[j + 1] = raw[j];
+        }
+        family = swapped.toString("utf16le").replace(/\0$/, "");
+        if (family) return family;
+      }
+      if (platformID === 3 && encodingID === 10) {
+        family = buf.toString("utf-8", strOff, strOff + length).replace(/\0$/, "");
+      }
+      // Platform ID 1 (Mac)
+      if (platformID === 1) {
+        family = buf.toString("utf8", strOff, strOff + length).replace(/\0$/, "");
+      }
+
+      if (family && !best) best = family;
+    }
+    return best;
+  } catch {
+    return null;
+  }
+}
+
+// 已安装自定义字体缓存
+let _cachedCustomFonts = null;
+
+function getCustomFonts() {
+  if (_cachedCustomFonts) return _cachedCustomFonts;
+  try {
+    const dir = getFontsDir();
+    const files = fs.readdirSync(dir).filter(f => /\.(ttf|otf|woff|woff2)$/i.test(f));
+    _cachedCustomFonts = files.map(f => {
+      const fp = path.join(dir, f);
+      const family = extractFontFamily(fp) || path.basename(f, path.extname(f));
+      return { filename: f, displayName: family };
+    });
+  } catch {
+    _cachedCustomFonts = [];
+  }
+  return _cachedCustomFonts;
+}
+
+function resetCustomFontsCache() {
+  _cachedCustomFonts = null;
+}
+
+ipcMain.handle("font:selectFont", async () => {
+  const r = await dialog.showOpenDialog(mainWindow, {
+    filters: [{ name: "Font Files", extensions: ["ttf", "otf", "woff", "woff2"] }],
+    properties: ["openFile"],
+    title: "选择字体文件",
+  });
+  if (r.canceled || !r.filePaths[0]) return null;
+
+  const src = r.filePaths[0];
+  const ext = path.extname(src);
+  const baseName = path.basename(src, ext);
+  // 生成唯一文件名，避免冲突
+  const safeName = baseName.replace(/[^a-zA-Z0-9一-鿿_-]/g, "_");
+  let destName = safeName + ext;
+  const fontsDir = getFontsDir();
+  // 如果同名文件已存在，加序号
+  let counter = 1;
+  while (fs.existsSync(path.join(fontsDir, destName))) {
+    destName = `${safeName}_${counter}${ext}`;
+    counter++;
+  }
+  try {
+    fs.copyFileSync(src, path.join(fontsDir, destName));
+  } catch (e) {
+    return { error: e.message };
+  }
+
+  const family = extractFontFamily(path.join(fontsDir, destName)) || safeName;
+  resetCustomFontsCache();
+  return { filename: destName, displayName: family };
+});
+
+ipcMain.handle("font:getCustomFonts", async () => {
+  return getCustomFonts();
+});
+
+ipcMain.handle("font:deleteCustomFont", async (_e, filename) => {
+  try {
+    const fp = path.join(getFontsDir(), filename);
+    if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    resetCustomFontsCache();
+    return true;
+  } catch {
+    return false;
+  }
+});
+
 // ── Auto-updater IPC ───────────────────────────────────────────────────
 ipcMain.handle("update:check", async () => {
   if (!autoUpdater) return { error: "electron-updater not available" };
@@ -402,9 +609,12 @@ ipcMain.handle("update:install", () => {
   if (autoUpdater) autoUpdater.quitAndInstall();
 });
 
-// Clipboard IPC (backup for preload)
+// Clipboard IPC
 ipcMain.handle("clipboard:read", () => clipboard.readText());
 ipcMain.handle("clipboard:write", (_e, text) => clipboard.writeText(text));
+ipcMain.on("clipboard:paste", () => {
+  if (mainWindow) mainWindow.webContents.paste();
+});
 
 // Window control IPC
 ipcMain.on("window-close", () => { if (mainWindow) mainWindow.close(); });
@@ -423,6 +633,26 @@ app.whenReady().then(() => {
     const url = new URL(request.url);
     const reqPath = decodeURIComponent(url.pathname);
     const baseDir = isDev ? path.join(__dirname, "..") : distDir;
+
+    // Serve custom fonts from data/fonts/ directory
+    if (reqPath.startsWith("/fonts/")) {
+      const fontName = reqPath.replace("/fonts/", "");
+      const fontPath = path.join(getFontsDir(), fontName);
+      const fontMime = {
+        ".ttf": "font/ttf", ".otf": "font/otf",
+        ".woff": "font/woff", ".woff2": "font/woff2",
+      };
+      const ft = fontMime[path.extname(fontName).toLowerCase()] || "application/octet-stream";
+      try {
+        return new Response(fs.readFileSync(fontPath), {
+          status: 200,
+          headers: { "content-type": ft, "access-control-allow-origin": "*" },
+        });
+      } catch {
+        return new Response("Font not found", { status: 404 });
+      }
+    }
+
     const filePath = path.join(baseDir, reqPath);
 
     const mime = {

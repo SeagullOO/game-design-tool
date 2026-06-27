@@ -6,6 +6,7 @@ import { t, getLang } from "../i18n";
 import Panel from "./Panel";
 import { EXPLORER_HEADER_HEIGHT, TREE_INDENT_BASE, TREE_INDENT_PER_DEPTH, TREE_ICON_GAP, TREE_ICON_SIZE, TREE_ICON_HEIGHT, TREE_ICON_TEXT_GAP, TREE_ICON_LEFT_OFFSET, TREE_CHEVRON_OFFSET, TREE_CHEVRON_WIDTH, TREE_GUIDE_OFFSET, TREE_GUIDE_HIGHLIGHT_WIDTH, TREE_GUIDE_HIGHLIGHT_COLOR, KEYBINDINGS } from "../config";
 import { ChevronIcon, MdFileIcon, DocxFileIcon, ExcelFileIcon, NewFolderIcon, RefreshIcon, BackIcon, SearchIcon, SunIcon, MoonIcon } from "./icons";
+import ConfirmModal from "./ConfirmModal";
 
 /**
  * FileExplorer — 文件资源管理器（工作区视图的左侧面板）
@@ -155,6 +156,8 @@ function FileExplorer({
   // 标记右键菜单"刚刚打开"：与 Sidebar 同样的机制，防止右键时菜单被立即关闭
   const menuJustOpened = useRef(false);
   const [workspaceMenu, setWorkspaceMenu] = useState<{ id: number; name: string }[] | null>(null);
+  // 删除文件夹确认弹窗：null 关闭，string 为待删除文件夹路径
+  const [deleteFolderConfirm, setDeleteFolderConfirm] = useState<string | null>(null);
   // 展开状态：初始全部展开，用户可手动折叠/展开
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   // 选中的文件夹路径：用于在树中高亮当前文件夹
@@ -230,13 +233,14 @@ function FileExplorer({
   }, [searchActive]);
 
   useEffect(() => {
-    const handleClick = () => {
+    const handleClick = (e: MouseEvent) => {
       if (menuJustOpened.current) return;
+      if ((e.target as HTMLElement).closest('.ctx-menu')) return;
       setContextMenu(null);
       setWorkspaceMenu(null);
     };
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
   }, []);
 
   // Delete / F2: 删除或重命名选中的文件/文件夹
@@ -786,7 +790,7 @@ function FileExplorer({
                 className="ctx-item">{t("newFolder", lang)}</button>
               <div className="ctx-separator" />
               <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onClick={() => { if (confirm(t("confirmDeleteFolderContent", lang))) { onDeleteFolder(contextMenu.folderPath!); } setContextMenu(null); }}
+                onClick={() => { setDeleteFolderConfirm(contextMenu.folderPath!); setContextMenu(null); }}
                 className="ctx-item ctx-danger">{t("delete", lang)}</button>
             </>
           ) : (
@@ -796,6 +800,19 @@ function FileExplorer({
         </div>,
         document.body
       )}
+
+      {/* Delete Folder Confirm */}
+      <ConfirmModal
+        open={deleteFolderConfirm !== null}
+        message={t("confirmDeleteFolderContent", lang)}
+        confirmLabel={t("delete", lang)}
+        danger
+        onConfirm={() => {
+          if (deleteFolderConfirm) onDeleteFolder(deleteFolderConfirm);
+          setDeleteFolderConfirm(null);
+        }}
+        onClose={() => setDeleteFolderConfirm(null)}
+      />
     </Panel>
     </div>
   );

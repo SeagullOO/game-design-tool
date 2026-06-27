@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
+import { createPortal } from "react-dom";
 import { t, getLang, setLang } from "../i18n";
 import type { Lang } from "../i18n";
 import { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, ZOOM_DEFAULT, MD_FONT_DEFAULT } from "../config";
@@ -131,8 +132,25 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
   const [lang, setLangState] = useState<Lang>(getLang);
   const [fontList, setFontList] = useState<string[]>([]);
   const [fontListLoading, setFontListLoading] = useState(false);
+  const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
+  const fontBtnRef = useRef<HTMLButtonElement>(null);
+  const [fontHistory, setFontHistory] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("gull_font_history");
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
   const isElectron = typeof window !== "undefined" && "electronAPI" in window;
   const api = (window as any).electronAPI;
+
+  /** Save font to history and persist */
+  const addToFontHistory = useCallback((font: string) => {
+    setFontHistory(prev => {
+      const next = [font, ...prev.filter(f => f !== font)].slice(0, 20);
+      localStorage.setItem("gull_font_history", JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   // ── 自动更新状态 ──────────────────────────────────────────────────────
   type UpdateStatus =
@@ -200,7 +218,6 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
     const api = (window as any).electronAPI;
     if (api?.getSystemFonts) {
       api.getSystemFonts().then((fonts: string[]) => {
-        // 确保默认字体出现在列表最前面（即使系统未安装）
         const filtered = fonts.filter((f: string) => f !== MD_FONT_DEFAULT);
         setFontList(filtered);
         setFontListLoading(false);
@@ -241,7 +258,7 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
           </button>
         ))}
       </nav>
-      <div className="stg-sidebar-footer">v1.0.0</div>
+      <div className="stg-sidebar-footer">v1.0.4</div>
     </aside>
   );
 
@@ -315,42 +332,124 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
                     <div className="stg-hint">{t("stgFontFamilyDesc", lang)}</div>
                   </div>
                   <div className="stg-control">
-                    <div className="stg-select-wrap">
-                      <select
-                        value={settings.mdFontFamily}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          const next = { ...settings, mdFontFamily: v };
-                          setSettings(next);
-                          saveSettings(next);
-                          (window as any).__applyMdFont?.(v);
-                        }}
-                      >
-                        <option value={MD_FONT_DEFAULT}>
-                          {MD_FONT_DEFAULT} ({t("stgDefault", lang)})
-                        </option>
+                    <button
+                      ref={fontBtnRef}
+                      className="stg-select-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFontDropdownOpen((prev) => !prev);
+                      }}
+                    >
+                      <span className="stg-select-btn-label">{settings.mdFontFamily}</span>
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                        style={{ flexShrink: 0, opacity: 0.5 }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                    {/* Font dropdown — Portal 到 body，使用统一的 ctx-menu 样式 */}
+                    {fontDropdownOpen && fontBtnRef.current && createPortal(
+                      <div className="ctx-menu animate-in" style={{
+                        position: "fixed",
+                        zIndex: 99999,
+                        top: fontBtnRef.current.getBoundingClientRect().bottom + 4,
+                        left: fontBtnRef.current.getBoundingClientRect().left,
+                        minWidth: Math.max(fontBtnRef.current.getBoundingClientRect().width, 200),
+                        maxHeight: 320,
+                        overflowY: "auto",
+                      }}>
+                        {/* 内置默认字体 */}
+                        <button
+                          className={`ctx-item${settings.mdFontFamily === MD_FONT_DEFAULT ? " ctx-item-active" : ""}`}
+                          onClick={() => {
+                            setFontDropdownOpen(false);
+                            const next = { ...settings, mdFontFamily: MD_FONT_DEFAULT };
+                            setSettings(next);
+                            saveSettings(next);
+                            (window as any).__applyMdFont?.(MD_FONT_DEFAULT);
+                            addToFontHistory(MD_FONT_DEFAULT);
+                          }}
+                        >
+                          <span className="ctx-item-label">{MD_FONT_DEFAULT} ({t("stgDefault", lang)})</span>
+                        </button>
+
+                        {/* ── 系统字体列表 ── */}
                         {fontListLoading ? (
-                          <option disabled>{t("stgLoadingFonts", lang)}</option>
-                        ) : fontList.length === 0 ? (
-                          <option disabled>{t("stgNoFonts", lang)}</option>
+                          <div className="ctx-item" style={{ color: "var(--text-tertiary)", cursor: "default" }}>
+                            <span className="ctx-item-label">{t("stgLoadingFonts", lang)}</span>
+                          </div>
                         ) : (
                           fontList.map((f) => (
-                            <option key={f} value={f}>{f}</option>
+                            <button
+                              key={f}
+                              className={`ctx-item${settings.mdFontFamily === f ? " ctx-item-active" : ""}`}
+                              onClick={() => {
+                                setFontDropdownOpen(false);
+                                const next = { ...settings, mdFontFamily: f };
+                                setSettings(next);
+                                saveSettings(next);
+                                (window as any).__applyMdFont?.(f);
+                                addToFontHistory(f);
+                              }}
+                            >
+                              <span className="ctx-item-label">{f}</span>
+                            </button>
                           ))
                         )}
-                      </select>
-                    </div>
+
+                        {/* ── 选择其他字体按钮 ── */}
+                        <div className="ctx-separator" />
+                        <button
+                          className="ctx-item"
+                          onClick={async () => {
+                            if (!api?.selectFont) return;
+                            // 不先关闭下拉，等文件对话框返回后再关闭
+                            const result = await api.selectFont();
+                            setFontDropdownOpen(false);
+                            if (!result || result.error) return;
+                            // 注入 @font-face
+                            const fontUrl = `app://./fonts/${encodeURIComponent(result.filename)}`;
+                            const styleId = `_gull_font_${result.filename.replace(/[^a-zA-Z0-9]/g, "_")}`;
+                            const existing = document.getElementById(styleId);
+                            if (!existing) {
+                              const style = document.createElement("style");
+                              style.id = styleId;
+                              const fmt = result.filename.endsWith(".woff2") ? "woff2" : result.filename.endsWith(".woff") ? "woff" : result.filename.endsWith(".otf") ? "opentype" : "truetype";
+                              style.textContent = `@font-face{font-family:"${result.displayName}";src:url("${fontUrl}") format("${fmt}");}`;
+                              document.head.appendChild(style);
+                            }
+                            const fontKey = result.displayName;
+                            // 立即应用
+                            const next = { ...settings, mdFontFamily: fontKey };
+                            setSettings(next);
+                            saveSettings(next);
+                            (window as any).__applyMdFont?.(fontKey);
+                            addToFontHistory(fontKey);
+                          }}
+                        >
+                          <span className="ctx-item-label">{t("stgSelectOtherFont", lang)}</span>
+                        </button>
+                      </div>,
+                      document.body,
+                    )}
+                    {/* Click-away 透明遮罩 */}
+                    {fontDropdownOpen && (
+                      <div
+                        style={{ position: "fixed", inset: 0, zIndex: 99998 }}
+                        onClick={() => setFontDropdownOpen(false)}
+                        onContextMenu={(e) => { e.preventDefault(); setFontDropdownOpen(false); }}
+                      />
+                    )}
                   </div>
                 </div>
                 {/* 字体预览 */}
                 <div className="stg-row">
                   <div
                     style={{
-                      fontFamily: `${settings.mdFontFamily}, monospace`,
+                      fontFamily: `"${settings.mdFontFamily}", monospace`,
                       fontSize: 14,
                       color: "var(--text-primary)",
                       padding: "8px 0",
-                      lineHeight: 1.6,
+                      lineHeight: 0.8,
                     }}
                   >
                     {t("stgFontPreview", lang)}
@@ -408,9 +507,9 @@ const Settings = memo(function Settings({ onClose }: { onClose: () => void }) {
                 <div className="stg-version-block" style={{ flexDirection: "column", gap: 12, alignItems: "stretch" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
-                      <div className="stg-app-name">Gull</div>
+                      <div className="stg-app-name">GullDoc</div>
                       <div className="stg-meta">
-                        版本 1.0.0 (build 2406.22)<br />
+                        版本 1.0.4 (build 2406.28)<br />
                         React 18 · Vite 5 · Electron 42<br />
                         © 2026
                       </div>

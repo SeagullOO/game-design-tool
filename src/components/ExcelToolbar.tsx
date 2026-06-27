@@ -76,12 +76,16 @@ const MAX_RECENT = 7;
 
 // ── 组件主体 ──────────────────────────────────────────────────────────────
 
+/** 根据当前主题返回默认字体颜色（暗色模式浅灰，亮色模式黑色） */
+const getDefaultFontColor = () =>
+  document.documentElement.classList.contains("light") ? "#000000" : "#A5A5A5";
+
 function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
   const lang = getLang();
   const [fontSizeOpen, setFontSizeOpen] = useState(false);
   const [fontColorOpen, setFontColorOpen] = useState(false);
   const [bgColorOpen, setBgColorOpen] = useState(false);
-  const [currentFontColor, setCurrentFontColor] = useState("#dadada");
+  const [currentFontColor, setCurrentFontColor] = useState(getDefaultFontColor);
   const [currentBgColor, setCurrentBgColor] = useState("transparent");
   const [currentBold, setCurrentBold] = useState(false);
   const [currentItalic, setCurrentItalic] = useState(false);
@@ -109,6 +113,18 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
     return () => window.removeEventListener("mousedown", handler);
   }, [fontSizeOpen, fontColorOpen, bgColorOpen]);
 
+  // ── 主题切换时同步默认字体颜色 ──
+  const fontIsDefaultRef = useRef(true);
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      if (fontIsDefaultRef.current) {
+        setCurrentFontColor(getDefaultFontColor());
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
   // Track selection to update format indicators
   const updateFromSelection = useCallback(() => {
     if (!hot || hot.isDestroyed) return;
@@ -117,7 +133,7 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
     const [r1, c1] = selected[0];
     if (r1 < 0 || c1 < 0) return; // skip row/col headers
     const meta = hot.getCellMeta(r1, c1);
-    setCurrentFontColor(meta._color || "#dadada");
+    setCurrentFontColor(meta._color || getDefaultFontColor());
     setCurrentBgColor(meta._bgColor || "transparent");
     setCurrentBold(!!meta._bold);
     setCurrentItalic(!!meta._italic);
@@ -246,13 +262,22 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
   const handleFontColor = (color: string) => {
     setFontColorOpen(false);
     setCurrentFontColor(color);
+    fontIsDefaultRef.current = false;
     applyToSelection("_color", color);
   };
 
   const handleClearFontColor = () => {
     setFontColorOpen(false);
-    setCurrentFontColor("#dadada");
+    setCurrentFontColor(getDefaultFontColor());
+    fontIsDefaultRef.current = true;
     applyToSelection("_color", undefined);
+  };
+
+  const handleResetFontColor = () => {
+    setFontColorOpen(false);
+    setCurrentFontColor(getDefaultFontColor());
+    fontIsDefaultRef.current = true;
+    applyToSelection("_color", getDefaultFontColor());
   };
 
   const handleBgColor = (color: string) => {
@@ -273,7 +298,7 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
     setCustomColorType(type);
     setCustomColorPanelRect(panelEl.getBoundingClientRect());
     setCustomInitialHex(
-      initHex && initHex !== "transparent" && initHex !== "#dadada" ? initHex : "#3370FF",
+      initHex && initHex !== "transparent" ? initHex : "#3370FF",
     );
     setCustomPanelOpen(true);
   };
@@ -359,10 +384,29 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
   const renderColorGrid = (
     currentColor: string,
     onPick: (color: string) => void,
-    _onClear: () => void,
+    onClear: () => void,
     onOpenCustom: () => void,
   ) => (
     <div>
+      {/* Reset to default */}
+      <div style={{ padding: "4px 10px 2px" }}>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onClear(); }}
+          style={{
+            width: "100%", padding: "3px 0", borderRadius: 3, cursor: "pointer",
+            background: "transparent", border: "1px solid var(--border-subtle)",
+            color: "var(--text-secondary)", fontSize: 11,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "background 0.1s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+        >
+          {t("resetToDefault", lang)}
+        </button>
+      </div>
+      <div style={{ height: 1, background: "var(--border-subtle)", margin: "2px 10px" }} />
       {/* Theme Colors — 2 rows × 7 */}
       <div style={{ fontSize: 9, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "2px 10px 2px" }}>{t("themeColors", lang)}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5, padding: "0 10px 4px", justifyItems: "center" }}>
@@ -545,7 +589,7 @@ function ExcelToolbar({ hot, onUndo, onRedo }: ExcelToolbarProps) {
           {renderColorGrid(
             currentFontColor,
             handleFontColor,
-            handleClearFontColor,
+            handleResetFontColor,
             () => { if (fontColorPanelRef.current) openCustomColor("font", fontColorPanelRef.current); },
           )}
         </DropPanel>

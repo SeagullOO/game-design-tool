@@ -59,6 +59,43 @@ import type { Lang } from "../i18n";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+// 存储复制/剪切时选区单元格的格式信息，粘贴时恢复
+interface ClipFmt {
+  rows: number;
+  cols: number;
+  cells: Array<{ _color?: string; _bgColor?: string; _bold?: boolean; _italic?: boolean; _fontSize?: number }>;
+}
+
+function captureClipFmt(hot: any, r1: number, c1: number, r2: number, c2: number): ClipFmt {
+  const cells: ClipFmt["cells"] = [];
+  for (let r = r1; r <= r2; r++) {
+    for (let c = c1; c <= c2; c++) {
+      const m = hot.getCellMeta(r, c);
+      cells.push({
+        _color: m._color, _bgColor: m._bgColor,
+        _bold: m._bold, _italic: m._italic, _fontSize: m._fontSize,
+      });
+    }
+  }
+  return { rows: r2 - r1 + 1, cols: c2 - c1 + 1, cells };
+}
+
+function applyClipFmt(hot: any, r1: number, c1: number, fmt: ClipFmt) {
+  for (let ri = 0; ri < fmt.rows; ri++) {
+    for (let ci = 0; ci < fmt.cols; ci++) {
+      const cell = fmt.cells[ri * fmt.cols + ci];
+      if (!cell) continue;
+      const r = r1 + ri, c = c1 + ci;
+      hot.setCellMeta(r, c, "_color", cell._color);
+      hot.setCellMeta(r, c, "_bgColor", cell._bgColor);
+      hot.setCellMeta(r, c, "_bold", cell._bold);
+      hot.setCellMeta(r, c, "_italic", cell._italic);
+      hot.setCellMeta(r, c, "_fontSize", cell._fontSize);
+    }
+  }
+  hot.render();
+}
+
 export interface MenuItem {
   key: string;
   name: string;
@@ -112,27 +149,18 @@ function dispatchAction(key: string, hot: any, selection: [number, number, numbe
     case "cut": {
       const cp = hot.getPlugin("copyPaste");
       if (cp) cp.copy();
+      (window as any).__gullClipFmt = captureClipFmt(hot, r1, c1, r2, c2);
       hot.emptySelectedCells();
       break;
     }
     case "copy": {
       const cp = hot.getPlugin("copyPaste");
       if (cp) cp.copy();
+      (window as any).__gullClipFmt = captureClipFmt(hot, r1, c1, r2, c2);
       break;
     }
     case "paste": {
-      const cp = hot.getPlugin("copyPaste");
-      if (cp && typeof cp.paste === "function") {
-        cp.paste();
-      } else {
-        // Fallback: 在 Handsontable DOM 中派发原生 paste 事件
-        const root = hot.rootElement as HTMLElement | undefined;
-        if (root) {
-          root.dispatchEvent(new ClipboardEvent("paste", {
-            bubbles: true, cancelable: true,
-          }));
-        }
-      }
+      // 粘贴已在 onClick 中异步处理（含格式恢复），此处不再处理
       break;
     }
     case "ctx_row_above": hot.alter("insert_row_above", r1, 1); break;
@@ -432,10 +460,36 @@ function SubmenuOverlay({
             className={`ctx-item ${hasChildren ? "ctx-item-parent" : ""}`}
             onMouseEnter={() => handleItemEnter(item)}
             onMouseLeave={handleItemLeave}
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
               if (!hasChildren) {
                 onCloseAll();
+                if (item.key === "paste") {
+                  if (!hot || hot.isDestroyed || !selection || selection.length === 0) return;
+                  if (selection[0]) {
+                    const [r1, c1] = selection[0];
+                    if (r1 >= 0 && c1 >= 0) {
+                      let text = "";
+                      try { text = await navigator.clipboard.readText(); } catch {}
+                      if (!text) {
+                        const api = (window as any).electronAPI;
+                        text = typeof api?.clipboardRead === "function" ? api.clipboardRead() : "";
+                      }
+                      if (text) {
+                        const rows = text.split("\n");
+                        for (let ri = 0; ri < rows.length; ri++) {
+                          const cols = rows[ri].split("\t");
+                          for (let ci = 0; ci < cols.length; ci++) {
+                            hot.setDataAtCell(r1 + ri, c1 + ci, cols[ci]);
+                          }
+                        }
+                        const fmt: ClipFmt | undefined = (window as any).__gullClipFmt;
+                        if (fmt) setTimeout(() => applyClipFmt(hot, r1, c1, fmt), 0);
+                      }
+                    }
+                  }
+                  return;
+                }
                 dispatchAction(item.key, hot, selection);
               }
             }}
@@ -605,9 +659,36 @@ export default function ContextMenu({
               className={`ctx-item ${hasChildren ? "ctx-item-parent" : ""}`}
               onMouseEnter={() => handleItemEnter(item)}
               onMouseLeave={handleItemLeave}
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
                 if (!hasChildren) {
+                  if (item.key === "paste") {
+                    // 粘贴在此异步处理（与 MD 编辑器相同模式）
+                    onClose();
+                    const h = hot || (window as any).__ctxHot;
+                    if (!h || h.isDestroyed || !selection || selection.length === 0) return;
+                    const [r1, c1] = selection[0];
+                    if (r1 < 0 || c1 < 0) return;
+                    let text = "";
+                    try { text = await navigator.clipboard.readText(); } catch {}
+                    if (!text) {
+                      const api = (window as any).electronAPI;
+                      text = typeof api?.clipboardRead === "function" ? api.clipboardRead() : "";
+                    }
+                    if (text) {
+                      const rows = text.split("\n");
+                      for (let ri = 0; ri < rows.length; ri++) {
+                        const cols = rows[ri].split("\t");
+                        for (let ci = 0; ci < cols.length; ci++) {
+                          h.setDataAtCell(r1 + ri, c1 + ci, cols[ci]);
+                        }
+                      }
+                      // 恢复格式
+                      const fmt: ClipFmt | undefined = (window as any).__gullClipFmt;
+                      if (fmt) setTimeout(() => applyClipFmt(h, r1, c1, fmt), 0);
+                    }
+                    return;
+                  }
                   onClose();
                   const h = hot || (window as any).__ctxHot;
                   dispatchAction(item.key, h, selection);

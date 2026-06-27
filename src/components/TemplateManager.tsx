@@ -12,12 +12,14 @@ import { storageLoadTemplates, storageDeleteTemplate } from "../storage";
 import type { Template } from "../types";
 import { t, getLang } from "../i18n";
 import PanelLayout from "./PanelLayout";
+import ConfirmModal from "./ConfirmModal";
 
 function TemplateManager({ onClose }: { onClose?: () => void }) {
   const close = onClose || (() => {});
   const lang = getLang();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<Template | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -25,14 +27,19 @@ function TemplateManager({ onClose }: { onClose?: () => void }) {
   };
   useEffect(() => { load(); }, []);
 
-  const handleDelete = async (tpl: Template) => {
-    if (!window.confirm(t("confirmDeleteTemplate", lang))) return;
-    await storageDeleteTemplate(tpl.id!);
-    setTemplates((prev) => prev.filter((t) => t.id !== tpl.id));
+  const handleDelete = (tpl: Template) => {
+    setDeleteConfirm(tpl);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    await storageDeleteTemplate(deleteConfirm.id!);
+    setTemplates((prev) => prev.filter((t) => t.id !== deleteConfirm.id));
+    setDeleteConfirm(null);
   };
 
   return (
-    <PanelLayout onClose={close}>
+    <PanelLayout onClose={close} width="600px" height="500px">
       <div>
         <h1 className="stg-section-title">{t("templateManagement", lang)}</h1>
         <p className="stg-section-desc">{t("manageTemplatesDesc", lang)}</p>
@@ -88,6 +95,16 @@ function TemplateManager({ onClose }: { onClose?: () => void }) {
           ))}
         </div>
       )}
+
+      {/* Delete Template Confirm */}
+      <ConfirmModal
+        open={deleteConfirm !== null}
+        message={t("confirmDeleteTemplate", lang)}
+        confirmLabel={t("delete", lang)}
+        danger
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteConfirm(null)}
+      />
     </PanelLayout>
   );
 }

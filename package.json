@@ -1,7 +1,7 @@
 {
   "name": "gull",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.4",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -59,7 +59,7 @@
   },
   "build": {
     "appId": "com.gull.app",
-    "productName": "Gull",
+    "productName": "GullDoc",
     "directories": {
       "output": "release"
     },

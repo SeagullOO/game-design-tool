@@ -293,13 +293,38 @@
 /* `.context-menu` / `.context-menu-item` / `.context-menu-divider` removed.
    Use `.ctx-menu` / `.ctx-item` / `.ctx-separator` / `.ctx-item.ctx-danger` instead. */
 
-/* animate-in for context menu */
+/* animate-in / animate-out for modals */
 .animate-in {
-  animation: fadeIn 0.1s ease;
+  animation: modalIn 0.15s ease;
 }
-@keyframes fadeIn {
+.animate-out {
+  animation: modalOut 0.15s ease;
+  animation-fill-mode: forwards;
+}
+@keyframes modalIn {
   from { opacity: 0; transform: scale(0.97); }
   to   { opacity: 1; transform: scale(1); }
+}
+@keyframes modalOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.97); }
+}
+
+/* overlay fade in/out (backdrop + mask) */
+.modal-overlay-in {
+  animation: overlayIn 0.15s ease;
+}
+.modal-overlay-out {
+  animation: overlayOut 0.15s ease;
+  animation-fill-mode: forwards;
+}
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes overlayOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 /* ---------- Tab bar ---------- */
@@ -311,8 +336,8 @@
   border-bottom: 1px solid var(--border-subtle);
   padding: 0 8px 0 0;
   gap: 0;
-  min-height: 32px;
-  position: relative;
+  min-height: 36px;
+  position: relative; 
 }
 .tab-bar::-webkit-scrollbar { display: none; }
 .tab {
@@ -766,40 +791,44 @@
   transform: translateX(16px);
 }
 
-/* ---- Select ---- */
-.stg-select-wrap {
-  position: relative;
-  display: inline-block;
-}
-.stg-select-wrap select {
-  appearance: none;
-  -webkit-appearance: none;
+/* ---- Select button (replaces native <select> for unified styling) ---- */
+.stg-select-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 200px;
+  padding: 5px 10px 5px 12px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
   background: var(--stg-bg);
   color: var(--stg-fg);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
-  font-size: 13px;
-  border: 1px solid var(--stg-border);
-  border-radius: 4px;
-  padding: 6px 30px 6px 10px;
   cursor: pointer;
-  min-width: 140px;
   outline: none;
+  transition: background 0.12s ease;
 }
-.stg-select-wrap select:focus {
-  border-color: var(--stg-accent);
+.stg-select-btn:hover {
+  background: var(--stg-accent-bg);
 }
-.stg-select-wrap::after {
-  content: '';
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid var(--stg-muted);
-  pointer-events: none;
+.stg-select-btn:focus-visible {
+  outline: 2px solid var(--stg-accent);
+  outline-offset: 1px;
+}
+.stg-select-btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  text-align: left;
+}
+
+/* Active item indicator in ctx-menu dropdowns */
+.ctx-item-active {
+  background: var(--bg-selected);
+  color: var(--accent-text);
 }
 
 /* ---- Text input ---- */

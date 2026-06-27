@@ -210,6 +210,35 @@ export function useExcelEditor(currentFile: FolderFile | null, folderId: number 
         if (matchesKey(event, KEYBINDINGS.excelUndo) && !event.shiftKey) {
           if (restoreMetaUndo(this)) { event.preventDefault(); event.stopImmediatePropagation(); }
         }
+        // Ctrl+V: 粘贴后恢复格式
+        if ((event.ctrlKey || event.metaKey) && event.key === "v") {
+          const fmt: any = (window as any).__gullClipFmt;
+          if (fmt) {
+            const sel = this.getSelected();
+            if (sel && sel[0]) {
+              const [r1, c1] = sel[0];
+              if (r1 >= 0 && c1 >= 0) {
+                setTimeout(() => {
+                  const f: any = (window as any).__gullClipFmt;
+                  if (f) {
+                    for (let ri = 0; ri < f.rows; ri++) {
+                      for (let ci = 0; ci < f.cols; ci++) {
+                        const cell = f.cells[ri * f.cols + ci];
+                        if (!cell) continue;
+                        this.setCellMeta(r1 + ri, c1 + ci, "_color", cell._color);
+                        this.setCellMeta(r1 + ri, c1 + ci, "_bgColor", cell._bgColor);
+                        this.setCellMeta(r1 + ri, c1 + ci, "_bold", cell._bold);
+                        this.setCellMeta(r1 + ri, c1 + ci, "_italic", cell._italic);
+                        this.setCellMeta(r1 + ri, c1 + ci, "_fontSize", cell._fontSize);
+                      }
+                    }
+                    this.render();
+                  }
+                }, 50);
+              }
+            }
+          }
+        }
       },
     };
     // HyperFormula 支持公式计算引擎（若已加载 CDN 脚本）

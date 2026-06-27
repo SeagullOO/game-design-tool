@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FolderFile } from "../types";
 import { t, getLang } from "../i18n";
 import { MdFileIcon, DocxFileIcon, ExcelFileIcon } from "./icons";
+import { useModalAnimation } from "../hooks/useModalAnimation";
 
 /**
  * FilePicker — 文件选择弹窗（用于 Markdown 编辑器中插入文件链接）
@@ -39,9 +40,10 @@ interface FilePickerProps {
 
 function FilePicker({ open, files, onClose, onSelect }: FilePickerProps) {
   const lang = getLang();
+  const { visible, closing, close } = useModalAnimation(open, onClose);
   const [search, setSearch] = useState("");
 
-  if (!open) return null;
+  if (!visible && !open) return null;
 
   const filtered = files.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase())
@@ -54,12 +56,12 @@ function FilePicker({ open, files, onClose, onSelect }: FilePickerProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.6)" }}
-      onClick={onClose}
+      className={`fixed inset-0 z-50 flex items-center justify-center ${closing ? "modal-overlay-out" : "modal-overlay-in"}`}
+      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+      onClick={close}
     >
       <div
-        className="w-full max-w-md mx-4 overflow-hidden animate-in"
+        className={`w-full max-w-md mx-4 overflow-hidden ${closing ? "animate-out" : "animate-in"}`}
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border-subtle)",
@@ -208,7 +210,7 @@ function FilePicker({ open, files, onClose, onSelect }: FilePickerProps) {
           className="px-5 py-3 flex justify-end"
           style={{ borderTop: "1px solid var(--border-subtle)" }}
         >
-          <button onClick={onClose} className="btn-secondary py-2 text-[13px]">
+          <button onClick={close} className="btn-secondary py-2 text-[13px]">
             {t("cancel", lang)}
           </button>
         </div>

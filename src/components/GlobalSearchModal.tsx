@@ -4,6 +4,7 @@ import { storageLoadFolders } from "../storage";
 import type { Folder, FolderFile } from "../types";
 import { t, getLang } from "../i18n";
 import { KEYBINDINGS } from "../config";
+import { useModalAnimation } from "../hooks/useModalAnimation";
 
 /**
  * GlobalSearchModal — 全局文件搜索弹窗（模仿 VS Code Ctrl+P 文件搜索）
@@ -49,6 +50,7 @@ interface SearchResult {
 
 function GlobalSearchModal({ open, onClose }: GlobalSearchModalProps) {
   const lang = getLang();
+  const { visible, closing, close } = useModalAnimation(open, onClose);
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -87,14 +89,14 @@ function GlobalSearchModal({ open, onClose }: GlobalSearchModalProps) {
 
   const handleSelect = (result: SearchResult) => {
     navigate(`/folder/${result.folder.id}?file=${result.file.id}`);
-    onClose();
+    close();
   };
 
   // 键盘导航：ArrowUp/ArrowDown 移动高亮索引，Enter 选中，Escape 关闭
   // preventDefault 阻止 ArrowUp/Down 导致输入框光标移动
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === KEYBINDINGS.closePanel.key) {
-      onClose();
+      close();
     } else if (e.key === KEYBINDINGS.searchNext.key) {
       e.preventDefault();
       setSelectedIdx((prev) => Math.min(prev + 1, results.length - 1));
@@ -109,30 +111,34 @@ function GlobalSearchModal({ open, onClose }: GlobalSearchModalProps) {
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === KEYBINDINGS.closePanel.key) onClose();
+      if (e.key === KEYBINDINGS.closePanel.key) close();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose]);
+  }, [open, close]);
 
-  if (!open) return null;
+  if (!visible && !open) return null;
 
   return (
     <div
+      className={closing ? "modal-overlay-out" : "modal-overlay-in"}
       style={{
         position: "fixed",
         inset: 0,
         zIndex: 99999,
-        background: "rgba(0,0,0,0.45)",
+        background: "rgba(0,0,0,0.5)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
         paddingTop: "15vh",
       }}
-      onClick={onClose}
+      onClick={close}
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className={closing ? "animate-out" : "animate-in"}
         style={{
           width: 560,
           maxHeight: "60vh",

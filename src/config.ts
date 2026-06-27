@@ -102,7 +102,7 @@ export const PANEL_LAYOUT_MIN_WIDTH = 560;
 /** 面板最小高度 (px) */
 export const PANEL_LAYOUT_MIN_HEIGHT = 400;
 /** 面板遮罩背景色 */
-export const PANEL_BACKDROP = "rgba(0, 0, 0, 0.5)";
+export const PANEL_BACKDROP = "rgba(0, 0, 0, 0.35)";
 
 /** FileExplorer 顶部栏高度 */
 export const EXPLORER_HEADER_HEIGHT = 36;

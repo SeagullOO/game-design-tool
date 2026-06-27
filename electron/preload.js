@@ -41,10 +41,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Font
   getSystemFonts: () => ipcRenderer.invoke("font:getSystemFonts"),
+  selectFont: () => ipcRenderer.invoke("font:selectFont"),
+  getCustomFonts: () => ipcRenderer.invoke("font:getCustomFonts"),
+  deleteCustomFont: (filename) => ipcRenderer.invoke("font:deleteCustomFont", filename),
 
   // Clipboard
   clipboardRead: () => clipboard.readText(),
   clipboardWrite: (text) => clipboard.writeText(text),
+  // 触发 Electron 原生粘贴（等同于 Ctrl+V），完全不用 Clipboard API
+  clipboardPaste: () => ipcRenderer.send("clipboard:paste"),
 
   // Window controls
   windowClose: () => ipcRenderer.send("window-close"),

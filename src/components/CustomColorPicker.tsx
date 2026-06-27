@@ -8,6 +8,7 @@
 
 import { useState, useRef, useEffect, type FC } from "react";
 import { createPortal } from "react-dom";
+import type { Lang } from "../i18n";
 import { hexToHsv, hsvToHex } from "../utils/colorUtils";
 import { t } from "../i18n";
 import { KEYBINDINGS } from "../config";
@@ -24,7 +25,7 @@ interface CustomColorPickerProps {
   /** 回调：关闭面板 */
   onClose: () => void;
   /** 语言标识 */
-  lang: string;
+  lang: Lang;
 }
 
 const CustomColorPicker: FC<CustomColorPickerProps> = ({

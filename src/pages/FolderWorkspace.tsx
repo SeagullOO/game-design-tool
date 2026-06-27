@@ -56,6 +56,8 @@ import { exportFolder } from "../utils/exportUtils";
 import { ZOOM_REFERENCE, PANEL_WIDTH, PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, SPLITTER_WIDTH, SPLITTER_HIT } from "../config";
 import { dataToCsv, csvToData, storageReadWorkspaceFileBinary, storageWriteWorkspaceFileBinary } from "../storage";
 import { dataToXlsxBase64, xlsxBase64ToData, createEmptyXlsxBase64 } from "../utils/xlsxUtils";
+import SaveAsTemplateModal from "../components/SaveAsTemplateModal";
+import ConfirmModal from "../components/ConfirmModal";
 
 /** 新建 Markdown 文件的默认内容（TipTap 文档结构） */
 const defaultMdContent = { type: "doc", content: [{ type: "paragraph" }] };
@@ -91,6 +93,8 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [saveAsTemplateModalOpen, setSaveAsTemplateModalOpen] = useState(false);
+  const [deleteFolderConfirm, setDeleteFolderConfirm] = useState<number | null>(null);
 
   // ─── Workspace mode state ───────────────────────────────────────────────
   const [folder, setFolder] = useState<Folder | null>(null);
@@ -441,11 +445,17 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
   };
 
   const handleDeleteFolder = async (id: number) => {
-    if (!window.confirm(t("confirmDeleteFolder", lang))) return;
+    setDeleteFolderConfirm(id);
+  };
+
+  const confirmDeleteFolder = async () => {
+    const id = deleteFolderConfirm;
+    if (id == null) return;
     const target = folders.find((f) => f.id === id);
     await storageDeleteFolder(id, target?.name);
     setFolders((prev) => prev.filter((f) => f.id !== id));
     if (selectedFolderId === id) setSelectedFolderId(null);
+    setDeleteFolderConfirm(null);
   };
 
   const handleCopyFolder = async (id: number) => {
@@ -674,22 +684,33 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
   });
 
   const handleSaveAsTemplate = async () => {
-    const name = prompt(t("templateName", lang), folderName);
-    if (!name?.trim() || !folder) return;
-    // Electron: 从磁盘加载所有文件内容后再保存模版
-    let templateFiles = folder?.files || [];
-    if (isDisk && templateFiles.length > 0) {
-      templateFiles = await Promise.all(templateFiles.map(async (f) => {
-        const raw = await storageReadWorkspaceFile(folder.name, f.name);
-        if (raw) {
-          try { return { ...f, content: JSON.parse(raw) }; }
-          catch { return { ...f, content: raw }; }
-        }
-        return f;
-      }));
+    if (!folder) {
+      alert(t("noWorkspaceToMove", lang));
+      return;
     }
-    await storageAddTemplate({ name: name.trim(), files: templateFiles, createdAt: Date.now() });
-    alert(t("templateSaved", lang));
+    setSaveAsTemplateModalOpen(true);
+  };
+
+  const handleSaveAsTemplateConfirm = async (name: string) => {
+    if (!folder) return;
+    try {
+      // Electron: 从磁盘加载所有文件内容后再保存模版
+      let templateFiles = folder?.files || [];
+      if (isDisk && templateFiles.length > 0) {
+        templateFiles = await Promise.all(templateFiles.map(async (f) => {
+          const raw = await storageReadWorkspaceFile(folder.name, f.name);
+          if (raw) {
+            try { return { ...f, content: JSON.parse(raw) }; }
+            catch { return { ...f, content: raw }; }
+          }
+          return f;
+        }));
+      }
+      await storageAddTemplate({ name, files: templateFiles, createdAt: Date.now() });
+      setSaveAsTemplateModalOpen(false);
+    } catch (err) {
+      throw err; // 让 modal 处理错误展示
+    }
   };
 
   /** 将工作区导出到本地磁盘（Electron：原生对话框；浏览器：Blob 下载） */
@@ -905,6 +926,26 @@ function FolderWorkspace({ sidebarOpen = true, zoom = 110, contentZoom = 100, se
         )}
       </div>
       </div>
+
+      {/* Save as Template Modal */}
+      <SaveAsTemplateModal
+        open={saveAsTemplateModalOpen}
+        defaultName={folderName}
+        files={folder?.files || []}
+        folderPaths={folder?.folders || []}
+        onSave={handleSaveAsTemplateConfirm}
+        onClose={() => setSaveAsTemplateModalOpen(false)}
+      />
+
+      {/* Delete Folder Confirm */}
+      <ConfirmModal
+        open={deleteFolderConfirm !== null}
+        message={t("confirmDeleteFolder", lang)}
+        confirmLabel={t("delete", lang)}
+        danger
+        onConfirm={confirmDeleteFolder}
+        onClose={() => setDeleteFolderConfirm(null)}
+      />
       </div>
     </div>
   );

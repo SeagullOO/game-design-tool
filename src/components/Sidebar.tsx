@@ -84,12 +84,13 @@ function Sidebar({
   }, [renamingId]);
 
   useEffect(() => {
-    const handleClick = () => {
+    const handleClick = (e: MouseEvent) => {
       if (menuJustOpened.current) return;
+      if ((e.target as HTMLElement).closest('.ctx-menu')) return;
       setContextMenu(null);
     };
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
   }, []);
 
   const filteredFolders = folders.filter((f) =>
@@ -222,16 +223,16 @@ function Sidebar({
             {filteredFolders.map((folder) => (
               <div
                 key={folder.id}
-                onClick={() => onSelectFolder(folder.id!)}
-                onDoubleClick={() => onDoubleClick(folder.id!)}
-                onContextMenu={(e) => handleContextMenu(e, folder.id!)}
-                className={`side-item group px-3 py-2 mx-0.5 cursor-pointer transition-colors duration-100 relative${selectedId === folder.id ? " active" : ""}`}
+                onClick={(e) => { e.stopPropagation(); if (folder.id != null) onSelectFolder(folder.id); }}
+                onDoubleClick={(e) => { e.stopPropagation(); if (folder.id != null) onDoubleClick(folder.id); }}
+                onContextMenu={(e) => { e.stopPropagation(); if (folder.id != null) handleContextMenu(e, folder.id); }}
+                className={`side-item group px-3 py-2 mx-0.5 cursor-pointer transition-colors duration-100 relative${selectedId != null && selectedId === folder.id ? " active" : ""}`}
                 style={{
                   borderRadius: "var(--radius)",
-                  color: selectedId === folder.id ? "var(--accent-text)" : "var(--text-secondary)",
+                  color: selectedId != null && selectedId === folder.id ? "var(--accent-text)" : "var(--text-secondary)",
                 }}
               >
-                {selectedId === folder.id && (
+                {selectedId != null && selectedId === folder.id && (
                   <span
                     style={{
                       position: "absolute", left: 0, top: 2, bottom: 2,
@@ -293,20 +294,22 @@ function Sidebar({
             }}
             className="ctx-item"
           >
-            {t("rename", lang)}
+            <span className="ctx-item-label">{t("rename", lang)}</span>
+            <span className="ctx-item-shortcut">F2</span>
           </button>
           <button
             onClick={() => { onCopy(contextMenu.folderId); setContextMenu(null); }}
             className="ctx-item"
           >
-            {t("copy", lang)}
+            <span className="ctx-item-label">{t("copy", lang)}</span>
           </button>
           <div className="ctx-separator" />
           <button
             onClick={() => { onDelete(contextMenu.folderId); setContextMenu(null); }}
             className="ctx-item ctx-danger"
           >
-            {t("delete", lang)}
+            <span className="ctx-item-label">{t("delete", lang)}</span>
+            <span className="ctx-item-shortcut">Del</span>
           </button>
         </div>,
         document.body

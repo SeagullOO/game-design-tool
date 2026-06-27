@@ -319,22 +319,30 @@ function MarkdownEditor({ source, onSourceChange, editorRef, isPreviewMode, onTo
             <span className="ctx-item-label">复制</span>
             <span className="ctx-item-shortcut">Ctrl+C</span>
           </button>
-          <button className="ctx-item" onClick={(e) => {
+          <button className="ctx-item" onClick={async (e) => {
             e.stopPropagation();
             const ed = editorRef.current;
             setCtxMenu(null);
             if (!ed) return;
             ed.focus();
-            // 向 Monaco 内部的 textarea 派发真实 paste 事件
-            // Monaco 的 paste 处理器会通过浏览器原生机制获取剪贴板数据
-            const ta = ed.getDomNode()?.querySelector("textarea.inputarea");
-            if (ta) {
-              const pe = new ClipboardEvent("paste", {
-                bubbles: true,
-                cancelable: true,
-                clipboardData: new DataTransfer(),
-              });
-              ta.dispatchEvent(pe);
+            let text = "";
+            try { text = await navigator.clipboard.readText(); } catch {}
+            if (!text) {
+              const api = (window as any).electronAPI;
+              text = typeof api?.clipboardRead === "function" ? api.clipboardRead() : "";
+            }
+            if (text) {
+              const sel = ed.getSelection();
+              if (sel) {
+                ed.executeEdits("clipboard-paste", [
+                  { range: sel, text, forceMoveMarkers: true },
+                ], () => [{ groupId: undefined }]);
+                // 把光标挪到粘贴文本末尾
+                const endPos = ed.getModel()!.modifyPosition(
+                  sel.getStartPosition(), text.length,
+                );
+                ed.setPosition(endPos);
+              }
             }
           }}>
             <span className="ctx-item-label">粘贴</span>

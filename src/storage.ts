@@ -36,6 +36,9 @@ declare global {
       installUpdate: () => void;
       onUpdateStatus: (cb: (status: string, data?: any) => void) => () => void;
       getSystemFonts: () => Promise<string[]>;
+      selectFont: () => Promise<{ filename: string; displayName: string; error?: string } | null>;
+      getCustomFonts: () => Promise<{ filename: string; displayName: string }[]>;
+      deleteCustomFont: (filename: string) => Promise<boolean>;
     };
   }
 }
@@ -127,9 +130,19 @@ export function getFolderNameById(id: number): string | undefined { return nameM
 /** 创建工作区：只建目录 */
 export async function storageSaveFolder(folder: Folder): Promise<number> {
   if (isElectron) {
-    await window.electronAPI!.mkdir(folder.name);
-    folder.id = nameToId(folder.name);
-    nameMap.set(folder.id, folder.name);
+    // 避免同名文件夹 ID 碰撞：在名称后追加 (2), (3) 等后缀
+    let name = folder.name;
+    const existing = await storageLoadFolders();
+    const existingNames = new Set(existing.map((f) => f.name));
+    if (existingNames.has(name)) {
+      let n = 2;
+      while (existingNames.has(`${name} (${n})`)) n++;
+      name = `${name} (${n})`;
+      folder.name = name;
+    }
+    await window.electronAPI!.mkdir(name);
+    folder.id = nameToId(name);
+    nameMap.set(folder.id, name);
     return folder.id!;
   }
   if (folder.id) {

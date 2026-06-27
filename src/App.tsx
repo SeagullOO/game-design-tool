@@ -185,7 +185,7 @@ function App() {
       const el = document.querySelector("[data-ui-zoom]") as HTMLElement | null;
       if (el) (el.style as any).zoom = z !== ZOOM_REFERENCE ? String(z / ZOOM_REFERENCE) : "";
     };
-    (window as any).__applyLang = (l: string) => { setLang(l); setLangState(l as "zh" | "en"); };
+    (window as any).__applyLang = (l: string) => { setLang(l as "zh" | "en"); setLangState(l as "zh" | "en"); };
     (window as any).__openTemplateManager = () => setTemplateManagerOpen(true);
     (window as any).__applyMdFont = (f: string) => setMdFontFamily(f);
     return () => {
@@ -237,7 +237,7 @@ function AppContent({
   templateManagerOpen, onCloseTemplateManager,
 }: {
   sidebarOpen: boolean;
-  setSidebarOpen: (v: boolean) => void;
+  setSidebarOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   globalSearchOpen: boolean;
   setGlobalSearchOpen: (v: boolean) => void;
   zoom: number;
